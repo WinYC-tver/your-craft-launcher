@@ -36,7 +36,7 @@
         <ui:NavigationView x:Name="NavigationView_Root"
                            IsPaneOpen="True"
                            PaneDisplayMode="Top"
-                           Header="{Binding CurrentPageTitle}"
+                           Header=""
                            Background="Transparent"
                            SelectionChanged="NavigationView_SelectionChanged">
             <ui:NavigationView.MenuItems>

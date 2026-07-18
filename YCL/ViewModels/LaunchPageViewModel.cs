@@ -26,17 +26,20 @@ namespace YCL.ViewModels
         private readonly IConfigService _configService;
         private readonly IAccountManager _accountManager;
         private readonly SkinService _skinService;
+        private readonly INavigationService _navigationService;
 
         public LaunchPageViewModel(
             IGameLauncher gameLauncher,
             IConfigService configService,
             IAccountManager accountManager,
-            SkinService skinService)
+            SkinService skinService,
+            INavigationService navigationService)
         {
             _gameLauncher = gameLauncher;
             _configService = configService;
             _accountManager = accountManager;
             _skinService = skinService;
+            _navigationService = navigationService;
 
             // 订阅启动器事件
             _gameLauncher.ProgressChanged += OnProgressChanged;
@@ -322,6 +325,20 @@ namespace YCL.ViewModels
         private void ClearLogs()
         {
             LogEntries.Clear();
+        }
+
+        /// <summary>切换账户：导航到账户管理页</summary>
+        [RelayCommand]
+        private void SwitchAccount()
+        {
+            _navigationService.NavigateTo("Account");
+        }
+
+        /// <summary>打开实例面板/实例设置</summary>
+        [RelayCommand]
+        private void OpenInstanceSettings()
+        {
+            _navigationService.NavigateTo("Instance");
         }
 
         /// <summary>账户列表变化时刷新当前账户显示</summary>

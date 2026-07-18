@@ -36,6 +36,12 @@ namespace YCL.ViewModels
         private readonly IConfigService _configService;
         private readonly IVersionResolver _versionResolver;
 
+        /// <summary>模组管理子页面 ViewModel（嵌入下载页"模组"Tab）</summary>
+        public ModPageViewModel ModPageVM { get; }
+
+        /// <summary>资源中心子页面 ViewModel（嵌入下载页"资源包"Tab）</summary>
+        public ResourcePageViewModel ResourcePageVM { get; }
+
         /// <summary>取消令牌源（每次下载创建一个新的）</summary>
         private CancellationTokenSource? _cts;
 
@@ -52,12 +58,16 @@ namespace YCL.ViewModels
             IMinecraftFileDownloader minecraftFileDownloader,
             IVersionManifestService manifestService,
             IConfigService configService,
-            IVersionResolver versionResolver)
+            IVersionResolver versionResolver,
+            ModPageViewModel modPageVM,
+            ResourcePageViewModel resourcePageVM)
         {
             _minecraftFileDownloader = minecraftFileDownloader;
             _manifestService = manifestService;
             _configService = configService;
             _versionResolver = versionResolver;
+            ModPageVM = modPageVM;
+            ResourcePageVM = resourcePageVM;
 
             // 订阅下载器事件
             _minecraftFileDownloader.ProgressChanged += OnProgressChanged;
@@ -133,6 +143,115 @@ namespace YCL.ViewModels
         /// <summary>开始下载按钮是否可用</summary>
         [ObservableProperty]
         private bool _canStartDownload = true;
+
+        /// <summary>整合包导入状态信息</summary>
+        [ObservableProperty]
+        private string _modpackStatus = "选择一个整合包 .zip 文件进行导入安装。";
+
+        /// <summary>是否正在导入整合包</summary>
+        [ObservableProperty]
+        private bool _isImportingModpack;
+
+        /// <summary>已安装的光影包列表（文件名）</summary>
+        public ObservableCollection<string> ShaderPacks { get; } = new();
+
+        /// <summary>光影包扫描状态</summary>
+        [ObservableProperty]
+        private string _shaderPackStatus = "点击刷新扫描已安装的光影包。";
+
+        /// <summary>导入整合包命令</summary>
+        [RelayCommand]
+        private async Task ImportModpackAsync()
+        {
+            if (IsImportingModpack) return;
+
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "选择整合包文件",
+                Filter = "整合包 (*.zip;*.mrpack)|*.zip;*.mrpack|所有文件 (*.*)|*.*"
+            };
+
+            if (dialog.ShowDialog() != true) return;
+
+            IsImportingModpack = true;
+            ModpackStatus = "正在导入整合包：" + System.IO.Path.GetFileName(dialog.FileName);
+
+            try
+            {
+                // 简单实现：将整合包文件复制到 .minecraft/modpacks 目录
+                var minecraftPath = _configService.Current.MinecraftPath;
+                if (string.IsNullOrWhiteSpace(minecraftPath))
+                {
+                    minecraftPath = System.IO.Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                        ".minecraft");
+                }
+
+                var modpacksDir = System.IO.Path.Combine(minecraftPath, "modpacks");
+                System.IO.Directory.CreateDirectory(modpacksDir);
+
+                var destPath = System.IO.Path.Combine(modpacksDir, System.IO.Path.GetFileName(dialog.FileName));
+                System.IO.File.Copy(dialog.FileName, destPath, true);
+
+                ModpackStatus = "整合包已导入：" + System.IO.Path.GetFileName(dialog.FileName) +
+                                "\n文件位置：" + destPath +
+                                "\n请使用对应工具解压安装。";
+                Logger.Info("整合包已导入到 " + destPath);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("导入整合包失败", ex);
+                ModpackStatus = "导入失败：" + ex.Message;
+            }
+            finally
+            {
+                IsImportingModpack = false;
+            }
+        }
+
+        /// <summary>刷新光影包列表命令</summary>
+        [RelayCommand]
+        private void RefreshShaderPacks()
+        {
+            try
+            {
+                var minecraftPath = _configService.Current.MinecraftPath;
+                if (string.IsNullOrWhiteSpace(minecraftPath))
+                {
+                    minecraftPath = System.IO.Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                        ".minecraft");
+                }
+
+                ShaderPacks.Clear();
+                var shaderDir = System.IO.Path.Combine(minecraftPath, "shaderpacks");
+
+                if (!System.IO.Directory.Exists(shaderDir))
+                {
+                    ShaderPackStatus = "光影包目录不存在：" + shaderDir;
+                    return;
+                }
+
+                var files = System.IO.Directory.GetFiles(shaderDir, "*.zip")
+                    .Concat(System.IO.Directory.GetFiles(shaderDir, "*.jar"));
+
+                foreach (var f in files)
+                {
+                    ShaderPacks.Add(System.IO.Path.GetFileName(f));
+                }
+
+                ShaderPackStatus = ShaderPacks.Count > 0
+                    ? $"共 {ShaderPacks.Count} 个光影包"
+                    : "未找到光影包。请先下载光影包放入 shaderpacks 目录。";
+
+                Logger.Info($"扫描到 {ShaderPacks.Count} 个光影包");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("扫描光影包失败", ex);
+                ShaderPackStatus = "扫描失败：" + ex.Message;
+            }
+        }
 
         /// <summary>开始下载命令</summary>
         [RelayCommand(CanExecute = nameof(CanStartDownload))]
