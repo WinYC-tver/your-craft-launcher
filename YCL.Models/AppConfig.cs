@@ -99,6 +99,31 @@ namespace YCL.Models
 
         /// <summary>是否开机自启动（写入注册表 HKCU\...\Run）</summary>
         public bool LaunchOnStartup { get; set; } = false;
+
+        // ====== 个性化设置 ======
+
+        /// <summary>
+        /// 窗口背景效果类型。
+        /// Acrylic=亚克力（半透明磨砂），Mica=云母（柔光），MicaAlt=云母Alt（顶部加强），
+        /// Default=不应用特殊效果（保持系统默认）。
+        /// 默认 Acrylic，与启动器 v26 默认风格保持一致。
+        /// </summary>
+        public BackdropType Backdrop { get; set; } = BackdropType.Acrylic;
+
+        /// <summary>
+        /// 自定义壁纸图片的本地路径（png/jpg）。
+        /// 为 null 时表示不使用自定义壁纸，仅显示背景效果。
+        /// </summary>
+        public string? WallpaperPath { get; set; }
+
+        /// <summary>
+        /// 壁纸的不透明度（0~1）。
+        /// 0=完全透明，1=完全不透明。默认 0.3，保证内容可读性。
+        /// </summary>
+        public double WallpaperOpacity { get; set; } = 0.3;
+
+        /// <summary>是否启用页面切换动画（淡入 + 上滑）</summary>
+        public bool EnableAnimations { get; set; } = true;
     }
 
     /// <summary>主题模式枚举</summary>
@@ -125,5 +150,25 @@ namespace YCL.Models
 
         /// <summary>MCBBS 镜像</summary>
         MCBBS = 2
+    }
+
+    /// <summary>
+    /// 窗口背景效果枚举。
+    /// 对应 iNKORE.UI.WPF.Modern 的 WindowBackdrop 枚举：
+    /// Default→Default, Acrylic→Acrylic, Mica→Mica, MicaAlt→Tabbed(即云母Alt)。
+    /// </summary>
+    public enum BackdropType
+    {
+        /// <summary>默认（不应用特殊背景效果）</summary>
+        Default = 0,
+
+        /// <summary>亚克力（半透明磨砂效果）</summary>
+        Acrylic = 1,
+
+        /// <summary>云母（柔光效果）</summary>
+        Mica = 2,
+
+        /// <summary>云母Alt（顶部加强的云母效果）</summary>
+        MicaAlt = 3
     }
 }

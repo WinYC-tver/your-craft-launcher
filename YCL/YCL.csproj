@@ -20,11 +20,13 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <!-- 程序集版本号（用于 CLR 加载和强名称匹配，固定四段式） -->
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <AssemblyVersion>26.1.0.2</AssemblyVersion>
     <!-- 文件版本号（显示在文件属性-详细信息中，固定四段式） -->
-    <FileVersion>1.0.0.0</FileVersion>
+    <FileVersion>26.1.0.2</FileVersion>
     <!-- 产品版本号（NuGet 包版本、显示用，三段式） -->
-    <Version>1.0.0</Version>
+    <Version>26.1.0.2</Version>
+    <!-- 编译号（构建标识，显示在关于页） -->
+    <InformationalVersion>26.1.0.2-snapshot1+build.0718.2654</InformationalVersion>
     <!-- 公司名 -->
     <Company>YCL Project</Company>
     <!-- 产品名 -->

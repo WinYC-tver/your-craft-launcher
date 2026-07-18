@@ -6,74 +6,78 @@
         xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
         mc:Ignorable="d"
         ui:WindowHelper.UseModernWindowStyle="True"
-        ui:WindowHelper.SystemBackdropType="Mica"
+        ui:WindowHelper.SystemBackdropType="Acrylic"
         Title="Your Craft Launcher (YCL)" Height="640" Width="1040"
         Loaded="Window_Loaded">
-    <!-- 侧边导航 + 内容区 -->
-    <ui:NavigationView x:Name="NavigationView_Root"
-                       IsPaneOpen="True"
-                       PaneDisplayMode="Left"
-                       Header="{Binding CurrentPageTitle}"
-                       SelectionChanged="NavigationView_SelectionChanged">
-        <ui:NavigationView.MenuItems>
-            <ui:NavigationViewItem x:Name="NavigationViewItem_Home" Content="主页" Tag="Home">
-                <ui:NavigationViewItem.Icon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Home}"/>
-                </ui:NavigationViewItem.Icon>
-            </ui:NavigationViewItem>
-            <ui:NavigationViewItem Content="启动" Tag="Launch">
-                <ui:NavigationViewItem.Icon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Play}"/>
-                </ui:NavigationViewItem.Icon>
-            </ui:NavigationViewItem>
-            <ui:NavigationViewItem Content="下载" Tag="Download">
-                <ui:NavigationViewItem.Icon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Download}"/>
-                </ui:NavigationViewItem.Icon>
-            </ui:NavigationViewItem>
-            <ui:NavigationViewItem Content="模组" Tag="Mods">
-                <ui:NavigationViewItem.Icon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Library}"/>
-                </ui:NavigationViewItem.Icon>
-            </ui:NavigationViewItem>
-            <ui:NavigationViewItem Content="资源" Tag="Resources">
-                <ui:NavigationViewItem.Icon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Package}"/>
-                </ui:NavigationViewItem.Icon>
-            </ui:NavigationViewItem>
-            <ui:NavigationViewItem Content="Java" Tag="Java">
-                <ui:NavigationViewItem.Icon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.DeveloperTools}"/>
-                </ui:NavigationViewItem.Icon>
-            </ui:NavigationViewItem>
-            <ui:NavigationViewItem Content="账户" Tag="Account">
-                <ui:NavigationViewItem.Icon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Contact}"/>
-                </ui:NavigationViewItem.Icon>
-            </ui:NavigationViewItem>
-            <ui:NavigationViewItem Content="存档" Tag="Saves">
-                <ui:NavigationViewItem.Icon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Save}"/>
-                </ui:NavigationViewItem.Icon>
-            </ui:NavigationViewItem>
-            <ui:NavigationViewItem Content="截图" Tag="Screenshots">
-                <ui:NavigationViewItem.Icon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Camera}"/>
-                </ui:NavigationViewItem.Icon>
-            </ui:NavigationViewItem>
-            <ui:NavigationViewItem Content="设置" Tag="Settings">
-                <ui:NavigationViewItem.Icon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Settings}"/>
-                </ui:NavigationViewItem.Icon>
-            </ui:NavigationViewItem>
-            <ui:NavigationViewItem Content="关于" Tag="About">
-                <ui:NavigationViewItem.Icon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Info}"/>
-                </ui:NavigationViewItem.Icon>
-            </ui:NavigationViewItem>
-        </ui:NavigationView.MenuItems>
+    <!-- 最外层 Grid：壁纸层 + 导航层叠加 -->
+    <Grid>
+        <!-- 第一层：自定义壁纸（位于NavigationView背后） -->
+        <!-- Source 绑定到窗口自身的 WallpaperPath 属性（WPF 自动把字符串路径转换为 ImageSource）
+             Opacity 绑定到窗口自身的 WallpaperOpacity 属性
+             DataTrigger 在 WallpaperPath 为空时折叠 Image -->
+        <Image x:Name="WallpaperImage"
+               Source="{Binding WallpaperPath, RelativeSource={RelativeSource AncestorType=Window}}"
+               Opacity="{Binding WallpaperOpacity, RelativeSource={RelativeSource AncestorType=Window}}"
+               Stretch="UniformToFill"
+               IsHitTestVisible="False">
+            <Image.Style>
+                <Style TargetType="Image">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding WallpaperPath, RelativeSource={RelativeSource AncestorType=Window}}" Value="{x:Null}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Image.Style>
+        </Image>
 
-        <!-- 内容区：绑定当前 ViewModel，由 App.xaml 中的 DataTemplate 渲染成对应页面 -->
-        <ContentControl Content="{Binding CurrentView}"/>
-    </ui:NavigationView>
+        <!-- 第二层：顶部导航 + 内容区 -->
+        <ui:NavigationView x:Name="NavigationView_Root"
+                           IsPaneOpen="True"
+                           PaneDisplayMode="Top"
+                           Header="{Binding CurrentPageTitle}"
+                           Background="Transparent"
+                           SelectionChanged="NavigationView_SelectionChanged">
+            <ui:NavigationView.MenuItems>
+                <ui:NavigationViewItem x:Name="NavigationViewItem_Launch" Content="启动" Tag="Launch">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Play}"/>
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="下载资源" Tag="Download">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Download}"/>
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="新闻" Tag="News">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Globe}"/>
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="功能" Tag="Functions">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Tiles}"/>
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="设置" Tag="Settings">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Settings}"/>
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+            </ui:NavigationView.MenuItems>
+
+            <!-- 内容区：绑定当前 ViewModel，由 App.xaml 中的 DataTemplate 渲染成对应页面。
+                 套一层 Grid 加半透明遮罩，保证内容区在带壁纸时可读性。 -->
+            <Grid>
+                <!-- 内容区半透明遮罩（让壁纸透出但内容仍可读） -->
+                <Border Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                        Opacity="0.85"
+                        IsHitTestVisible="False"/>
+
+                <!-- 实际内容控件 -->
+                <ContentControl Content="{Binding CurrentView}"/>
+            </Grid>
+        </ui:NavigationView>
+    </Grid>
 </Window>

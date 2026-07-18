@@ -17,5 +17,18 @@ namespace YCL.Services
 
         /// <summary>从配置对象中读取主题设置并应用（启动时调用）</summary>
         void ApplyFromConfig(IConfigService configService);
+
+        /// <summary>
+        /// 应用窗口背景效果（亚克力 / 云母 / 云母Alt / 默认）。
+        /// 会遍历当前应用所有打开的窗口逐个设置。
+        /// </summary>
+        void ApplyBackdrop(BackdropType backdrop);
+
+        /// <summary>
+        /// 应用自定义壁纸。把壁纸路径与不透明度存入应用资源字典，
+        /// MainWindow 中的壁纸 Image 通过 DynamicResource 绑定这两个键。
+        /// path 为 null 表示清除壁纸。
+        /// </summary>
+        void ApplyWallpaper(string? path, double opacity);
     }
 }

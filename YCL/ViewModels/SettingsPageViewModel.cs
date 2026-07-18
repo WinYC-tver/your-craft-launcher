@@ -78,6 +78,12 @@ namespace YCL.ViewModels
             _checkUpdateOnStartup = config.CheckUpdateOnStartup;
             _updateRepo = config.UpdateRepo;
             _launchOnStartup = config.LaunchOnStartup;
+
+            // ====== 个性化设置（v26） ======
+            _selectedBackdrop = config.Backdrop;
+            _wallpaperPath = config.WallpaperPath;
+            _wallpaperOpacity = config.WallpaperOpacity;
+            _enableAnimations = config.EnableAnimations;
         }
 
         // ================================================================
@@ -466,6 +472,91 @@ namespace YCL.ViewModels
             {
                 IsCheckingUpdate = false;
             }
+        }
+
+        // ================================================================
+        // 个性化设置（v26 新增）
+        // ================================================================
+
+        /// <summary>背景效果（默认 / 亚克力 / 云母 / 云母Alt）</summary>
+        [ObservableProperty]
+        private BackdropType _selectedBackdrop;
+
+        partial void OnSelectedBackdropChanged(BackdropType value)
+        {
+            _configService.Current.Backdrop = value;
+            _configService.Save();
+            // 即时应用到所有窗口
+            _themeService.ApplyBackdrop(value);
+        }
+
+        /// <summary>自定义壁纸路径（为 null 时表示不使用壁纸）</summary>
+        [ObservableProperty]
+        private string? _wallpaperPath;
+
+        partial void OnWallpaperPathChanged(string? value)
+        {
+            _configService.Current.WallpaperPath = value;
+            _configService.Save();
+            // 即时应用壁纸
+            _themeService.ApplyWallpaper(value, WallpaperOpacity);
+        }
+
+        /// <summary>壁纸不透明度（0~1）</summary>
+        [ObservableProperty]
+        private double _wallpaperOpacity;
+
+        partial void OnWallpaperOpacityChanged(double value)
+        {
+            // 限制在 0~1 之间
+            if (value < 0) value = 0;
+            if (value > 1) value = 1;
+            _configService.Current.WallpaperOpacity = value;
+            _configService.Save();
+            // 即时应用壁纸不透明度
+            _themeService.ApplyWallpaper(WallpaperPath, value);
+        }
+
+        /// <summary>是否启用页面切换动画</summary>
+        [ObservableProperty]
+        private bool _enableAnimations;
+
+        partial void OnEnableAnimationsChanged(bool value)
+        {
+            _configService.Current.EnableAnimations = value;
+            _configService.Save();
+            // 动画通过 XAML Style 实现，开关状态由资源控制（此处仅持久化配置）
+        }
+
+        /// <summary>浏览选择壁纸图片（png/jpg）</summary>
+        [RelayCommand]
+        private void BrowseWallpaper()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "选择壁纸图片",
+                Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp|所有文件|*.*",
+                CheckFileExists = true
+            };
+
+            if (!string.IsNullOrWhiteSpace(WallpaperPath))
+            {
+                var dir = Path.GetDirectoryName(WallpaperPath);
+                if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                    dialog.InitialDirectory = dir;
+            }
+
+            if (dialog.ShowDialog() == true)
+            {
+                WallpaperPath = dialog.FileName;
+            }
+        }
+
+        /// <summary>清除当前自定义壁纸</summary>
+        [RelayCommand]
+        private void ClearWallpaper()
+        {
+            WallpaperPath = null;
         }
 
         // ================================================================

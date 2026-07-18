@@ -258,6 +258,79 @@
             </Border>
 
             <!-- ================================================================ -->
+            <!-- 个性化设置（v26 新增：背景效果 / 自定义壁纸 / 不透明度 / 动画） -->
+            <!-- ================================================================ -->
+            <TextBlock Text="个性化" FontSize="20" FontWeight="SemiBold"
+                       Margin="0,24,0,8" Opacity="0.8"/>
+
+            <!-- 背景效果 -->
+            <ui:SettingsCard Header="背景效果" Description="选择窗口的背景效果（亚克力 / 云母 / 云母Alt）">
+                <ui:SettingsCard.HeaderIcon>
+                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Asterisk}"/>
+                </ui:SettingsCard.HeaderIcon>
+                <ComboBox SelectedValue="{Binding SelectedBackdrop, Mode=TwoWay}"
+                          SelectedValuePath="Tag"
+                          MinWidth="160">
+                    <ComboBoxItem Content="默认" Tag="{x:Static models:BackdropType.Default}"/>
+                    <ComboBoxItem Content="亚克力 Acrylic" Tag="{x:Static models:BackdropType.Acrylic}"/>
+                    <ComboBoxItem Content="云母 Mica" Tag="{x:Static models:BackdropType.Mica}"/>
+                    <ComboBoxItem Content="云母Alt MicaAlt" Tag="{x:Static models:BackdropType.MicaAlt}"/>
+                </ComboBox>
+            </ui:SettingsCard>
+
+            <!-- 自定义壁纸 -->
+            <ui:SettingsCard Header="自定义壁纸" Description="设置一张背景图片（png/jpg），为空时仅显示背景效果">
+                <ui:SettingsCard.HeaderIcon>
+                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Photo}"/>
+                </ui:SettingsCard.HeaderIcon>
+                <StackPanel Orientation="Horizontal">
+                    <TextBox Text="{Binding WallpaperPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             MinWidth="220" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <Button Content="浏览" Command="{Binding BrowseWallpaperCommand}"
+                            Padding="12,4" Margin="0,0,8,0"/>
+                    <Button Content="清除" Command="{Binding ClearWallpaperCommand}"
+                            Padding="12,4" Margin="0,0,8,0"/>
+                    <!-- 小预览 Image：WallpaperPath 为空时折叠 -->
+                    <Image Source="{Binding WallpaperPath}"
+                           Width="48" Height="48" Stretch="UniformToFill">
+                        <Image.Style>
+                            <Style TargetType="Image">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding WallpaperPath}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Image.Style>
+                    </Image>
+                </StackPanel>
+            </ui:SettingsCard>
+
+            <!-- 壁纸不透明度 -->
+            <ui:SettingsCard Header="壁纸不透明度" Description="调整壁纸的透明度（0=完全透明，1=完全不透明）">
+                <ui:SettingsCard.HeaderIcon>
+                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Brightness}"/>
+                </ui:SettingsCard.HeaderIcon>
+                <StackPanel Orientation="Horizontal" MinWidth="280">
+                    <Slider Value="{Binding WallpaperOpacity, Mode=TwoWay}"
+                            Minimum="0" Maximum="1" TickFrequency="0.05"
+                            IsSnapToTickEnabled="True"
+                            MinWidth="200" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding WallpaperOpacity, StringFormat={}{0:F2}}"
+                               VerticalAlignment="Center" Margin="8,0,0,0" Opacity="0.7"/>
+                </StackPanel>
+            </ui:SettingsCard>
+
+            <!-- 启用动画 -->
+            <ui:SettingsCard Header="启用页面切换动画" Description="开关页面切换时的淡入+上滑动画效果">
+                <ui:SettingsCard.HeaderIcon>
+                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.SlowMotionOn}"/>
+                </ui:SettingsCard.HeaderIcon>
+                <ui:ToggleSwitch IsOn="{Binding EnableAnimations, Mode=TwoWay}"/>
+            </ui:SettingsCard>
+
+            <!-- ================================================================ -->
             <!-- 外观设置（主题） -->
             <!-- ================================================================ -->
             <TextBlock Text="外观" FontSize="20" FontWeight="SemiBold"

@@ -239,6 +239,12 @@ namespace YCL
                     services.AddTransient<SavesPageViewModel>();
                     services.AddTransient<ScreenshotsPageViewModel>();
 
+                    // 20.5 v26 新增板块 ViewModel：新闻 / 功能 / 联机 / 实例面板
+                    services.AddSingleton<NewsPageViewModel>();
+                    services.AddSingleton<FunctionsHubViewModel>();
+                    services.AddSingleton<MultiplayerPageViewModel>();
+                    services.AddSingleton<InstancePanelViewModel>();
+
                     // 21. 注册主窗口（单例）
                     services.AddSingleton<MainWindow>();
                 })

@@ -26,8 +26,8 @@ namespace YCL.ViewModels
             _navigationService = navigationService;
             // 订阅导航完成事件，同步更新本 ViewModel 的属性
             _navigationService.Navigated += OnNavigated;
-            // 启动时默认导航到主页
-            _navigationService.NavigateTo("Home");
+            // 启动时默认导航到启动页（v26：Home 已从顶部导航移除，改为 Launch）
+            _navigationService.NavigateTo("Launch");
         }
 
         /// <summary>导航服务完成导航后的回调：同步当前视图与标题</summary>

@@ -50,6 +50,42 @@
             <DataTemplate DataType="{x:Type vm:AboutPageViewModel}">
                 <views:AboutPage/>
             </DataTemplate>
+
+            <!-- v26 新增页面 DataTemplate -->
+            <DataTemplate DataType="{x:Type vm:NewsPageViewModel}">
+                <views:NewsPage/>
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:FunctionsHubViewModel}">
+                <views:FunctionsHubPage/>
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:MultiplayerPageViewModel}">
+                <views:MultiplayerPage/>
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:InstancePanelViewModel}">
+                <views:InstancePanelPage/>
+            </DataTemplate>
+
+            <!-- 页面切换动画：所有 UserControl（页面）在 Loaded 时执行淡入+上滑动画 -->
+            <Style TargetType="UserControl">
+                <Setter Property="RenderTransform">
+                    <Setter.Value>
+                        <TranslateTransform Y="12"/>
+                    </Setter.Value>
+                </Setter>
+                <Setter Property="Opacity" Value="0"/>
+                <Style.Triggers>
+                    <EventTrigger RoutedEvent="Loaded">
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                  From="0" To="1" Duration="0:0:0.25"/>
+                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                  From="12" To="0" Duration="0:0:0.25"/>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </EventTrigger>
+                </Style.Triggers>
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
