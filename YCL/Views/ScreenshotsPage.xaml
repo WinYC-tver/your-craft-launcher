@@ -1,0 +1,227 @@
+<UserControl x:Class="YCL.Views.ScreenshotsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
+      mc:Ignorable="d"
+      d:DesignHeight="720" d:DesignWidth="800">
+    <UserControl.Resources>
+        <!-- 提示信息 Border 样式：HintMessage 为 null 或空时折叠 -->
+        <Style x:Key="HintBorderStyle" TargetType="Border">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HintMessage}" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding HintMessage}" Value="">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 加载中提示样式：IsLoading 为 false 时折叠 -->
+        <Style x:Key="LoadingStyle" TargetType="Border">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsLoading}" Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 截图卡片选中样式 -->
+        <Style x:Key="ScreenshotBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseLowBrush}"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundAccentBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- 顶部：标题 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 版本选择区 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 操作栏 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 加载中提示 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 提示信息 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 截图网格 -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ============ 顶部：标题 ============ -->
+        <StackPanel Grid.Row="0" Margin="24,16,24,4">
+            <TextBlock Text="截图管理" FontSize="32" FontWeight="SemiBold"/>
+            <TextBlock Text="查看、打开、删除游戏中的截图。缩略图会在后台异步加载。"
+                       Opacity="0.6" FontSize="13" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <!-- ============ 版本选择 ============ -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="24,8,24,8">
+            <TextBlock Text="当前版本：" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox ItemsSource="{Binding Versions}"
+                      SelectedItem="{Binding SelectedVersion, Mode=TwoWay}"
+                      MinWidth="220" Margin="0,0,8,0"/>
+            <Button Content="刷新版本" Command="{Binding RefreshVersionsCommand}"
+                    Padding="12,4" Margin="0,0,8,0"/>
+            <TextBlock Text="{Binding GameDirDisplay}" Opacity="0.5" FontSize="11"
+                       VerticalAlignment="Center" Margin="12,0,0,0" TextTrimming="CharacterEllipsis"
+                       MaxWidth="320"/>
+        </StackPanel>
+
+        <!-- ============ 操作栏 ============ -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="24,4,24,8">
+            <Button Content="刷新截图" Command="{Binding RefreshScreenshotsCommand}"
+                    Padding="14,4" MinWidth="88" Margin="0,0,8,0">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                <Setter Property="IsEnabled" Value="False"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Content="打开截图" Command="{Binding OpenScreenshotCommand}"
+                    Padding="14,4" MinWidth="88" Margin="0,0,8,0"/>
+            <Button Content="删除截图" Command="{Binding DeleteScreenshotCommand}"
+                    Padding="14,4" MinWidth="88" Margin="0,0,8,0"/>
+            <Button Content="打开截图文件夹" Command="{Binding OpenScreenshotsFolderCommand}"
+                    Padding="14,4" MinWidth="120"/>
+        </StackPanel>
+
+        <!-- ============ 加载中提示 ============ -->
+        <Border Grid.Row="3" Style="{StaticResource LoadingStyle}"
+                Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                CornerRadius="6" Padding="12,8" Margin="24,4,24,8">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <ProgressBar IsIndeterminate="True" Width="120" Height="4" Margin="0,0,12,0"/>
+                <TextBlock Text="正在加载缩略图..." Opacity="0.7" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ============ 提示信息 ============ -->
+        <Border Grid.Row="4" Style="{StaticResource HintBorderStyle}"
+                Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                CornerRadius="6" Padding="12,8" Margin="24,4,24,8">
+            <TextBlock Text="{Binding HintMessage}" TextWrapping="Wrap" Opacity="0.8"/>
+        </Border>
+
+        <!-- ============ 截图网格 ============ -->
+        <Grid Grid.Row="5" Margin="24,4,24,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- 列表标题 + 数量 -->
+            <Grid Grid.Row="0" Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="截图列表" FontSize="14" FontWeight="SemiBold"
+                           Opacity="0.8" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" Opacity="0.6">
+                    <Run Text="共 "/>
+                    <Run Text="{Binding Screenshots.Count, Mode=OneWay}"/>
+                    <Run Text=" 张"/>
+                </TextBlock>
+            </Grid>
+
+            <!-- 截图 ListBox（用 WrapPanel 作为面板，自动换行） -->
+            <Border Grid.Row="1"
+                    Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                    CornerRadius="4"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    BorderThickness="1">
+                <ListBox ItemsSource="{Binding Screenshots}"
+                         SelectedItem="{Binding SelectedScreenshot, Mode=TwoWay}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         Margin="2">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" ItemWidth="180" ItemHeight="180"/>
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="Margin" Value="4"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource ScreenshotBorderStyle}" CornerRadius="6"
+                                    ClipToBounds="True">
+                                <Grid>
+                                    <!-- 缩略图（加载后显示） -->
+                                    <Image Source="{Binding Thumbnail}" Stretch="UniformToFill">
+                                        <Image.Style>
+                                            <Style TargetType="Image">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Thumbnail}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Image.Style>
+                                    </Image>
+
+                                    <!-- 缩略图加载前的占位图（旋转加载动画） -->
+                                    <Border Background="{DynamicResource SystemControlBackgroundBaseMediumBrush}">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Thumbnail}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="🖼️" FontSize="40" HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" Opacity="0.5"/>
+                                    </Border>
+
+                                    <!-- 底部信息条 -->
+                                    <Border VerticalAlignment="Bottom"
+                                            Background="#80000000"
+                                            Padding="8,4">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding FileName}" Foreground="White"
+                                                       FontSize="11" TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding FileName}"/>
+                                            <TextBlock Foreground="#FFE0E0E0" FontSize="10" Margin="0,2,0,0">
+                                                <Run Text="{Binding SizeDisplay, Mode=OneWay}"/>
+                                                <Run Text=" · "/>
+                                                <Run Text="{Binding CaptureTimeDisplay, Mode=OneWay}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

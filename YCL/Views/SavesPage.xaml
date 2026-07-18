@@ -1,0 +1,351 @@
+<UserControl x:Class="YCL.Views.SavesPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
+      mc:Ignorable="d"
+      d:DesignHeight="720" d:DesignWidth="800"
+      Loaded="SavesPage_Loaded">
+    <UserControl.Resources>
+        <!-- 提示信息 Border 样式：HintMessage 为 null 或空时折叠 -->
+        <Style x:Key="HintBorderStyle" TargetType="Border">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HintMessage}" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding HintMessage}" Value="">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 进度区样式：IsBusy 为 false 时折叠 -->
+        <Style x:Key="BusyStyle" TargetType="Border">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsBusy}" Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 进度条样式：ProgressPercent = -1 时不定进度 -->
+        <Style x:Key="ProgressBarStyle" TargetType="ProgressBar">
+            <Setter Property="IsIndeterminate" Value="False"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ProgressPercent}" Value="-1">
+                    <Setter Property="IsIndeterminate" Value="True"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 存档卡片按钮统一样式 -->
+        <Style x:Key="CardButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Padding" Value="10,3"/>
+            <Setter Property="Margin" Value="0,0,4,0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="MinWidth" Value="64"/>
+        </Style>
+
+        <!-- 存档选中样式 -->
+        <Style x:Key="SaveCardBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseLowBrush}"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundAccentBrush}"/>
+                    <Setter Property="BorderThickness" Value="2"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- 顶部：标题 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 版本选择区 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 操作栏 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 进度区 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 提示信息 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 主体内容（存档列表 + 备份历史） -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ============ 顶部：标题 ============ -->
+        <StackPanel Grid.Row="0" Margin="24,16,24,4">
+            <TextBlock Text="存档管理" FontSize="32" FontWeight="SemiBold"/>
+            <TextBlock Text="备份、恢复、导入、导出你的 Minecraft 存档。先选择版本，再操作存档。"
+                       Opacity="0.6" FontSize="13" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <!-- ============ 版本选择 ============ -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="24,8,24,8">
+            <TextBlock Text="当前版本：" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox ItemsSource="{Binding Versions}"
+                      SelectedItem="{Binding SelectedVersion, Mode=TwoWay}"
+                      MinWidth="220" Margin="0,0,8,0"/>
+            <Button Content="刷新版本" Command="{Binding RefreshVersionsCommand}"
+                    Padding="12,4" Margin="0,0,8,0"/>
+            <TextBlock Text="{Binding GameDirDisplay}" Opacity="0.5" FontSize="11"
+                       VerticalAlignment="Center" Margin="12,0,0,0" TextTrimming="CharacterEllipsis"
+                       MaxWidth="320"/>
+        </StackPanel>
+
+        <!-- ============ 操作栏 ============ -->
+        <WrapPanel Grid.Row="2" Margin="24,4,24,8">
+            <Button Content="刷新存档" Command="{Binding RefreshSavesCommand}"
+                    Padding="14,4" MinWidth="88" Margin="0,0,8,4">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                <Setter Property="IsEnabled" Value="False"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Content="备份" Command="{Binding BackupSaveCommand}"
+                    Padding="14,4" MinWidth="72" Margin="0,0,8,4"/>
+            <Button Content="恢复" Command="{Binding RestoreBackupCommand}"
+                    Padding="14,4" MinWidth="72" Margin="0,0,8,4"/>
+            <Button Content="导入" Command="{Binding ImportSaveCommand}"
+                    Padding="14,4" MinWidth="72" Margin="0,0,8,4"/>
+            <Button Content="导出" Command="{Binding ExportSaveCommand}"
+                    Padding="14,4" MinWidth="72" Margin="0,0,8,4"/>
+            <Button Content="删除存档" Command="{Binding DeleteSaveCommand}"
+                    Padding="14,4" MinWidth="88" Margin="0,0,8,4"/>
+            <Button Content="删除备份" Command="{Binding DeleteBackupCommand}"
+                    Padding="14,4" MinWidth="88" Margin="0,0,8,4"/>
+            <Button Content="打开存档文件夹" Command="{Binding OpenSavesFolderCommand}"
+                    Padding="14,4" MinWidth="120" Margin="0,0,8,4"/>
+        </WrapPanel>
+
+        <!-- ============ 进度区 ============ -->
+        <Border Grid.Row="3" Style="{StaticResource BusyStyle}"
+                Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                CornerRadius="6" Padding="12,8" Margin="24,4,24,8">
+            <StackPanel>
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" Opacity="0.8"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center" Opacity="0.7" Margin="12,0,0,0">
+                        <Run Text="进度："/>
+                        <Run Text="{Binding ProgressPercent, Mode=OneWay}"/>
+                        <Run Text="%"/>
+                    </TextBlock>
+                </Grid>
+                <ProgressBar Height="6" Margin="0,2,0,0"
+                             Style="{StaticResource ProgressBarStyle}"
+                             Minimum="0" Maximum="100"
+                             Value="{Binding ProgressPercent, Mode=OneWay}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ============ 提示信息 ============ -->
+        <Border Grid.Row="4" Style="{StaticResource HintBorderStyle}"
+                Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                CornerRadius="6" Padding="12,8" Margin="24,4,24,8">
+            <TextBlock Text="{Binding HintMessage}" TextWrapping="Wrap" Opacity="0.8"/>
+        </Border>
+
+        <!-- ============ 主体内容：存档列表 + 备份历史 ============ -->
+        <Grid Grid.Row="5" Margin="24,4,24,16">
+            <Grid.ColumnDefinitions>
+                <!-- 左侧：存档列表 -->
+                <ColumnDefinition Width="*"/>
+                <!-- 右侧：备份历史 -->
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ===== 左侧：存档列表 ===== -->
+            <Grid Grid.Column="0" Margin="0,0,8,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- 列表标题 + 数量 -->
+                <Grid Grid.Row="0" Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="存档列表" FontSize="14" FontWeight="SemiBold"
+                               Opacity="0.8" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center" Opacity="0.6">
+                        <Run Text="共 "/>
+                        <Run Text="{Binding Saves.Count, Mode=OneWay}"/>
+                        <Run Text=" 个"/>
+                    </TextBlock>
+                </Grid>
+
+                <!-- 存档卡片列表 -->
+                <Border Grid.Row="1"
+                        Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                        CornerRadius="4"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                        BorderThickness="1">
+                    <ListBox ItemsSource="{Binding Saves}"
+                             SelectedItem="{Binding SelectedSave, Mode=TwoWay}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             Margin="2"
+                             HorizontalContentAlignment="Stretch">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="2"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="2,3" Padding="12,10"
+                                        Style="{StaticResource SaveCardBorderStyle}"
+                                        CornerRadius="6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- 左侧：存档图标 -->
+                                        <Border Grid.Column="0" Width="48" Height="48"
+                                                CornerRadius="4" Margin="0,0,12,0"
+                                                Background="{DynamicResource SystemControlBackgroundBaseMediumBrush}">
+                                            <Grid>
+                                                <!-- 有 icon.png 时显示图片，否则显示占位文字 -->
+                                                <Image Source="{Binding IconPath}" Stretch="UniformToFill">
+                                                    <Image.Style>
+                                                        <Style TargetType="Image">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasIcon}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Image.Style>
+                                                </Image>
+                                                <TextBlock Text="🎮" FontSize="24" HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasIcon}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- 右侧：名称、时间、大小 -->
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="15"/>
+                                            <TextBlock Opacity="0.6" FontSize="11" Margin="0,4,0,0">
+                                                <Run Text="修改时间："/>
+                                                <Run Text="{Binding LastModifiedDisplay, Mode=OneWay}"/>
+                                            </TextBlock>
+                                            <TextBlock Opacity="0.6" FontSize="11" Margin="0,2,0,0">
+                                                <Run Text="大小："/>
+                                                <Run Text="{Binding SizeDisplay, Mode=OneWay}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </Grid>
+
+            <!-- ===== 右侧：备份历史 ===== -->
+            <Grid Grid.Column="1" Margin="8,0,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- 列表标题 + 数量 -->
+                <Grid Grid.Row="0" Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="备份历史" FontSize="14" FontWeight="SemiBold"
+                               Opacity="0.8" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center" Opacity="0.6">
+                        <Run Text="共 "/>
+                        <Run Text="{Binding Backups.Count, Mode=OneWay}"/>
+                        <Run Text=" 个"/>
+                    </TextBlock>
+                </Grid>
+
+                <!-- 备份列表 -->
+                <Border Grid.Row="1"
+                        Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                        CornerRadius="4"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                        BorderThickness="1">
+                    <ListBox ItemsSource="{Binding Backups}"
+                             SelectedItem="{Binding SelectedBackup, Mode=TwoWay}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             Margin="2"
+                             HorizontalContentAlignment="Stretch">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="2"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="2,3" Padding="12,10"
+                                        Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                                        CornerRadius="6">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding SaveName}" FontWeight="SemiBold" FontSize="14"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding FileName}" Opacity="0.6" FontSize="11"
+                                                   Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Opacity="0.6" FontSize="11" Margin="0,2,0,0">
+                                            <Run Text="备份时间："/>
+                                            <Run Text="{Binding CreatedTimeDisplay, Mode=OneWay}"/>
+                                        </TextBlock>
+                                        <TextBlock Opacity="0.6" FontSize="11" Margin="0,2,0,0">
+                                            <Run Text="大小："/>
+                                            <Run Text="{Binding SizeDisplay, Mode=OneWay}"/>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

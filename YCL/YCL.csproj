@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\YCL.Core\YCL.Core.csproj" />
+    <ProjectReference Include="..\YCL.Models\YCL.Models.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="iNKORE.UI.WPF.Modern" Version="0.10.2.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.18362.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- 程序集版本号（用于 CLR 加载和强名称匹配，固定四段式） -->
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <!-- 文件版本号（显示在文件属性-详细信息中，固定四段式） -->
+    <FileVersion>1.0.0.0</FileVersion>
+    <!-- 产品版本号（NuGet 包版本、显示用，三段式） -->
+    <Version>1.0.0</Version>
+    <!-- 公司名 -->
+    <Company>YCL Project</Company>
+    <!-- 产品名 -->
+    <Product>Your Craft Launcher</Product>
+    <!-- 版权信息 -->
+    <Copyright>Copyright © 2026 YCL</Copyright>
+    <!-- 应用程序图标（暂无 .ico 文件，留空；后续添加 YCL.ico 到 YCL 目录后取消注释即可） -->
+    <!-- <ApplicationIcon>YCL.ico</ApplicationIcon> -->
+  </PropertyGroup>
+
+  <!--
+    移除 ImplicitUsings 自动添加的全局 System.Drawing 与 System.Windows.Forms using。
+    因为项目同时启用了 WPF 和 WinForms，System.Windows.Forms.UserControl / System.Drawing.Color
+    会与 WPF 的 System.Windows.Controls.UserControl / System.Windows.Media.Color 产生歧义。
+    项目中只在 SettingsPageViewModel.BrowseMinecraftPath 里用到了 WinForms 的 FolderBrowserDialog，
+    且用的是完全限定名，所以移除这两个全局 using 是安全的。
+  -->
+  <ItemGroup>
+    <Using Remove="System.Drawing" />
+    <Using Remove="System.Windows.Forms" />
+  </ItemGroup>
+
+</Project>

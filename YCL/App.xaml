@@ -1,0 +1,55 @@
+<Application x:Class="YCL.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:YCL"
+             xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
+             xmlns:vm="clr-namespace:YCL.ViewModels"
+             xmlns:views="clr-namespace:YCL.Views">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- iNKORE 主题资源字典（包含颜色、画刷等主题资源） -->
+                <ui:ThemeResources/>
+                <!-- iNKORE 控件资源字典（为 WPF 原生控件套上现代样式） -->
+                <ui:XamlControlsResources/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- DataTemplate：把每个 ViewModel 映射到对应的 View（页面）。
+                 当 ContentControl 的 Content 是某个 ViewModel 时，
+                 WPF 会自动用它对应的 DataTemplate 渲染出页面。 -->
+            <DataTemplate DataType="{x:Type vm:HomePageViewModel}">
+                <views:HomePage/>
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:LaunchPageViewModel}">
+                <views:LaunchPage/>
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:DownloadPageViewModel}">
+                <views:DownloadPage/>
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:JavaPageViewModel}">
+                <views:JavaPage/>
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:ModPageViewModel}">
+                <views:ModPage/>
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:ResourcePageViewModel}">
+                <views:ResourcePage/>
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:AccountPageViewModel}">
+                <views:AccountPage/>
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:SettingsPageViewModel}">
+                <views:SettingsPage/>
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:SavesPageViewModel}">
+                <views:SavesPage/>
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:ScreenshotsPageViewModel}">
+                <views:ScreenshotsPage/>
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:AboutPageViewModel}">
+                <views:AboutPage/>
+            </DataTemplate>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

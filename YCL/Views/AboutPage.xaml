@@ -1,0 +1,140 @@
+<UserControl x:Class="YCL.Views.AboutPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
+      mc:Ignorable="d"
+      d:DesignHeight="600" d:DesignWidth="800">
+    <UserControl.Resources>
+        <!-- 更新结果区样式：UpdateCheckResult 为空时折叠 -->
+        <Style x:Key="UpdateResultStyle" TargetType="Border">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding UpdateCheckResult}" Value="">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- "前往下载"按钮样式：NewVersionDownloadUrl 为 null 时折叠 -->
+        <Style x:Key="DownloadButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding NewVersionDownloadUrl}" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- GitHub 按钮样式：GitHubUrl 为空时折叠 -->
+        <Style x:Key="GitHubButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding GitHubUrl}" Value="">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="24,16,24,24">
+            <StackPanel MaxWidth="640" HorizontalAlignment="Left">
+
+                <!-- ============ 页面标题 ============ -->
+                <TextBlock Text="关于" FontSize="32" FontWeight="SemiBold" Margin="0,0,0,16"/>
+
+                <!-- ============ 启动器信息卡片 ============ -->
+                <Border Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                        CornerRadius="8" Padding="24,20" Margin="0,0,0,16">
+                    <StackPanel>
+                        <!-- 启动器名称 -->
+                        <TextBlock Text="{Binding AppName}" FontSize="24" FontWeight="SemiBold"/>
+
+                        <!-- 版本号 -->
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBlock Text="版本：" Opacity="0.6" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding AppVersion}" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" Margin="4,0,0,0"/>
+                        </StackPanel>
+
+                        <!-- 简介 -->
+                        <TextBlock Text="{Binding AppDescription}" Opacity="0.7"
+                                   TextWrapping="Wrap" Margin="0,16,0,0"/>
+
+                        <!-- 技术栈 -->
+                        <TextBlock Text="{Binding TechStack}" Opacity="0.5"
+                                   FontSize="12" Margin="0,12,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ 更新检查区 ============ -->
+                <Border Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                        CornerRadius="8" Padding="24,20" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="启动器更新" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <TextBlock Text="检查 GitHub 上是否有新版本。如有新版本可前往下载页面更新。"
+                                   Opacity="0.6" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                        <!-- 检查更新按钮（检查中禁用并显示"检查中..."） -->
+                        <Button Command="{Binding CheckUpdateCommand}" Padding="16,6"
+                                MinWidth="120" HorizontalAlignment="Left">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                    <Setter Property="Content" Value="检查更新"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCheckingUpdate}" Value="True">
+                                            <Setter Property="IsEnabled" Value="False"/>
+                                            <Setter Property="Content" Value="检查中..."/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+
+                        <!-- 更新检查结果 -->
+                        <Border Style="{StaticResource UpdateResultStyle}"
+                                Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                                CornerRadius="4" Padding="12,8" Margin="0,12,0,0">
+                            <StackPanel>
+                                <TextBlock Text="{Binding UpdateCheckResult}" TextWrapping="Wrap" Opacity="0.9"/>
+                                <!-- 前往下载页面按钮（仅发现新版本时显示） -->
+                                <Button Style="{StaticResource DownloadButtonStyle}"
+                                        Command="{Binding GoToDownloadPageCommand}"
+                                        Content="前往下载页面"
+                                        Padding="12,4" MinWidth="120"
+                                        HorizontalAlignment="Left" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ 链接区 ============ -->
+                <Border Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                        CornerRadius="8" Padding="24,20" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="项目链接" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                        <!-- GitHub 仓库按钮（仅当配置了 UpdateRepo 时显示） -->
+                        <Button Style="{StaticResource GitHubButtonStyle}"
+                                Command="{Binding OpenGitHubCommand}"
+                                Padding="16,6" MinWidth="160" HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.World}" Margin="0,0,8,0"/>
+                                <TextBlock Text="GitHub 仓库"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ 版权信息 ============ -->
+                <TextBlock HorizontalAlignment="Left" Opacity="0.5" FontSize="11" TextWrapping="Wrap">
+                    <Run Text="© "/>
+                    <Run Text="{Binding AppName, Mode=OneWay}"/>
+                    <Run Text=". 仅供学习交流使用。Minecraft 版权归 Mojang / Microsoft 所有。"/>
+                </TextBlock>
+
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>
