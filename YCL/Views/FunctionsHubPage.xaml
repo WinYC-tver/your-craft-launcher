@@ -17,6 +17,19 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
+                        <ControlTemplate.Resources>
+                            <!-- Storyboard 定义在 ControlTemplate.Resources 中，让 Triggers 能用 StaticResource 找到 -->
+                            <Storyboard x:Key="HoverStoryboard">
+                                <DoubleAnimation Storyboard.TargetName="CardBorder"
+                                                  Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                  To="-4" Duration="0:0:0.15"/>
+                            </Storyboard>
+                            <Storyboard x:Key="LeaveStoryboard">
+                                <DoubleAnimation Storyboard.TargetName="CardBorder"
+                                                  Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                  To="0" Duration="0:0:0.15"/>
+                            </Storyboard>
+                        </ControlTemplate.Resources>
                         <Border x:Name="CardBorder"
                                 Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
                                 BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
@@ -27,18 +40,6 @@
                             <Border.RenderTransform>
                                 <TranslateTransform Y="0"/>
                             </Border.RenderTransform>
-                            <Border.Resources>
-                                <Storyboard x:Key="HoverStoryboard">
-                                    <DoubleAnimation Storyboard.TargetName="CardBorder"
-                                                      Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                                                      To="-4" Duration="0:0:0.15"/>
-                                </Storyboard>
-                                <Storyboard x:Key="LeaveStoryboard">
-                                    <DoubleAnimation Storyboard.TargetName="CardBorder"
-                                                      Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                                                      To="0" Duration="0:0:0.15"/>
-                                </Storyboard>
-                            </Border.Resources>
                             <ContentPresenter Content="{TemplateBinding Content}"/>
                         </Border>
                         <ControlTemplate.Triggers>
