@@ -1,0 +1,66 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+    <!-- ====== 应用标题 ====== -->
+    <sys:String x:Key="App_Title">YCL 启动器</sys:String>
+
+    <!-- ====== 导航板块 ====== -->
+    <sys:String x:Key="Nav_Launch">启动</sys:String>
+    <sys:String x:Key="Nav_Download">下载资源</sys:String>
+    <sys:String x:Key="Nav_News">新闻</sys:String>
+    <sys:String x:Key="Nav_Functions">功能</sys:String>
+    <sys:String x:Key="Nav_Settings">设置</sys:String>
+    <sys:String x:Key="Nav_Multiplayer">联机</sys:String>
+    <sys:String x:Key="Nav_Instance">实例面板</sys:String>
+    <sys:String x:Key="Nav_Java">Java</sys:String>
+    <sys:String x:Key="Nav_Account">账户</sys:String>
+    <sys:String x:Key="Nav_Saves">存档</sys:String>
+    <sys:String x:Key="Nav_Screenshots">截图</sys:String>
+
+    <!-- ====== 启动页 ====== -->
+    <sys:String x:Key="Launch_Button">启动游戏</sys:String>
+    <sys:String x:Key="Launch_Status_Ready">就绪</sys:String>
+    <sys:String x:Key="Launch_Status_Launching">启动中...</sys:String>
+    <sys:String x:Key="Launch_Status_Running">运行中</sys:String>
+
+    <!-- ====== 设置页分类 ====== -->
+    <sys:String x:Key="Settings_LaunchManage">启动与管理</sys:String>
+    <sys:String x:Key="Settings_GameSettings">游戏设置</sys:String>
+    <sys:String x:Key="Settings_Personalize">个性化</sys:String>
+    <sys:String x:Key="Settings_Download">下载</sys:String>
+    <sys:String x:Key="Settings_Advanced">高级</sys:String>
+    <sys:String x:Key="Settings_About">关于</sys:String>
+    <sys:String x:Key="Settings_Search_Placeholder">搜索设置项...</sys:String>
+
+    <!-- ====== 通用按钮 ====== -->
+    <sys:String x:Key="Common_OK">确定</sys:String>
+    <sys:String x:Key="Common_Cancel">取消</sys:String>
+    <sys:String x:Key="Common_Save">保存</sys:String>
+    <sys:String x:Key="Common_Refresh">刷新</sys:String>
+    <sys:String x:Key="Common_Back">返回</sys:String>
+
+    <!-- ====== 账户页 ====== -->
+    <sys:String x:Key="Account_NoAccount">未选择账户</sys:String>
+    <sys:String x:Key="Account_SwitchAccount">切换账户</sys:String>
+
+    <!-- ====== Java 页 ====== -->
+    <sys:String x:Key="Java_AutoSelect">自动选择</sys:String>
+    <sys:String x:Key="Java_InstallOnline">在线安装 Java</sys:String>
+
+    <!-- ====== 新闻页 ====== -->
+    <sys:String x:Key="News_NoHomepage">您还没有配置主页哦，请现在 设置&gt;个性化 里设置一个</sys:String>
+    <sys:String x:Key="News_GoToSettings">去设置</sys:String>
+
+    <!-- ====== 下载页 ====== -->
+    <sys:String x:Key="Download_SearchPlaceholder">搜索模组、整合包、资源包...</sys:String>
+    <sys:String x:Key="Download_Category_Game">游戏</sys:String>
+    <sys:String x:Key="Download_Category_Resource">资源</sys:String>
+    <sys:String x:Key="Download_Category_Favorites">收藏</sys:String>
+    <sys:String x:Key="Download_GetNow">立即获取</sys:String>
+
+    <!-- ====== 崩溃报告窗口 ====== -->
+    <sys:String x:Key="Crash_Title">游戏崩溃了</sys:String>
+    <sys:String x:Key="Crash_Close">关闭</sys:String>
+    <sys:String x:Key="Crash_OpenFolder">打开报告文件夹</sys:String>
+    <sys:String x:Key="Crash_CopyPath">复制路径</sys:String>
+</ResourceDictionary>

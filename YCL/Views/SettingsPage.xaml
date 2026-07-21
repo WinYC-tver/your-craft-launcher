@@ -5,387 +5,649 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
       xmlns:models="clr-namespace:YCL.Models;assembly=YCL.Models"
+      xmlns:conv="clr-namespace:YCL.Converters"
       mc:Ignorable="d"
-      d:DesignHeight="900" d:DesignWidth="800">
-    <!-- 设置页内容较多，用 ScrollViewer 包裹方便滚动 -->
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="24,16,24,24">
+      d:DesignHeight="900" d:DesignWidth="1000">
+    <UserControl.Resources>
+        <conv:KeywordMatchToVisibilityConverter x:Key="SearchMatchConverter"/>
+        <conv:StringEqualsToVisibilityConverter x:Key="CategoryMatchConverter"/>
 
-            <!-- 页面大标题 -->
-            <TextBlock Text="设置" FontSize="32" FontWeight="SemiBold" Margin="0,0,0,16"/>
+        <!-- 左侧分类导航按钮样式：选中时高亮（依据 SelectedCategoryKey） -->
+        <Style x:Key="NavButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Padding" Value="14,10,12,10"/>
+            <Setter Property="Margin" Value="0,2"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
 
-            <!-- ================================================================ -->
-            <!-- 启动设置 -->
-            <!-- ================================================================ -->
-            <TextBlock Text="启动设置" FontSize="20" FontWeight="SemiBold"
-                       Margin="0,8,0,8" Opacity="0.8"/>
+        <!-- 分类小标题 -->
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,4,0,10"/>
+            <Setter Property="Opacity" Value="0.9"/>
+        </Style>
+    </UserControl.Resources>
 
-            <!-- Java 路径 -->
-            <ui:SettingsCard Header="Java 路径" Description="启动游戏使用的 Java 运行时（javaw.exe）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.DeveloperTools}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <StackPanel Orientation="Horizontal">
-                    <TextBox Text="{Binding JavaPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             MinWidth="280" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                    <Button Content="浏览" Command="{Binding BrowseJavaPathCommand}"
-                            Padding="12,4" Margin="0,0,8,0"/>
-                    <Button Content="检测 Java" Command="{Binding GoToJavaPageCommand}"
-                            Padding="12,4"/>
-                </StackPanel>
-            </ui:SettingsCard>
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- 顶部：标题 + 搜索框 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 主体：左导航 + 右内容 -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-            <!-- 最大内存 -->
-            <ui:SettingsCard Header="最大内存 (-Xmx)" Description="Java 虚拟机最大堆内存，单位 MB（建议 2048~4096）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.SDCard}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <StackPanel Orientation="Horizontal">
-                    <TextBox Text="{Binding MaxMemory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             MinWidth="100" VerticalAlignment="Center"/>
-                    <TextBlock Text="MB" VerticalAlignment="Center" Margin="8,0,0,0" Opacity="0.6"/>
-                </StackPanel>
-            </ui:SettingsCard>
+        <!-- ============ 顶部标题栏 + 搜索框 ============ -->
+        <Grid Grid.Row="0" Margin="24,16,24,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <TextBlock Text="设置" FontSize="32" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding AppVersion, Mode=OneWay}" Opacity="0.4" FontSize="13"
+                           VerticalAlignment="Bottom" Margin="12,0,0,4"/>
+            </StackPanel>
+            <!-- 设置搜索（v26.1.0.5）：实时过滤左侧分类 -->
+            <TextBox Grid.Column="1" Width="280" VerticalAlignment="Center"
+                     ui:ControlHelper.PlaceholderText="搜索设置项..."
+                     Text="{Binding SearchKeyword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+        </Grid>
 
-            <!-- 初始内存 -->
-            <ui:SettingsCard Header="初始内存 (-Xms)" Description="Java 虚拟机初始堆内存，单位 MB（建议 512~1024）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.SDCard}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <StackPanel Orientation="Horizontal">
-                    <TextBox Text="{Binding MinMemory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             MinWidth="100" VerticalAlignment="Center"/>
-                    <TextBlock Text="MB" VerticalAlignment="Center" Margin="8,0,0,0" Opacity="0.6"/>
-                </StackPanel>
-            </ui:SettingsCard>
+        <!-- ============ 主体：左导航 + 右内容 ============ -->
+        <Grid Grid.Row="1" Margin="24,0,24,20">
+            <Grid.ColumnDefinitions>
+                <!-- 左侧分类导航 -->
+                <ColumnDefinition Width="240"/>
+                <!-- 右侧分类内容 -->
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-            <!-- 游戏窗口大小 -->
-            <ui:SettingsCard Header="游戏窗口大小" Description="启动时游戏窗口的宽度和高度（像素）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.ViewAll}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <StackPanel Orientation="Horizontal">
-                    <TextBox Text="{Binding WindowWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             MinWidth="70" VerticalAlignment="Center"/>
-                    <TextBlock Text=" × " VerticalAlignment="Center" Margin="4,0"/>
-                    <TextBox Text="{Binding WindowHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             MinWidth="70" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <TextBlock Text="像素" VerticalAlignment="Center" Opacity="0.6"/>
-                </StackPanel>
-            </ui:SettingsCard>
-
-            <!-- 全屏启动 -->
-            <ui:SettingsCard Header="全屏启动" Description="启动游戏时自动进入全屏模式（--fullscreen 参数）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.FitPage}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <ui:ToggleSwitch IsOn="{Binding FullscreenOnLaunch, Mode=TwoWay}"/>
-            </ui:SettingsCard>
-
-            <!-- 启动后关闭启动器 -->
-            <ui:SettingsCard Header="启动后关闭启动器" Description="游戏成功启动后自动关闭启动器窗口，节省内存">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.ChromeBackToWindow}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <ui:ToggleSwitch IsOn="{Binding CloseAfterLaunch, Mode=TwoWay}"/>
-            </ui:SettingsCard>
-
-            <!-- 高级 JVM 参数 -->
-            <ui:SettingsCard Header="高级 JVM 参数" Description="用户自定义追加的 JVM 参数，多个参数用空格分隔（如 -XX:+UseG1GC -XX:MaxGCPauseMillis=50）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Settings}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <TextBox Text="{Binding ExtraJvmArgs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                         MinWidth="300" AcceptsReturn="True" TextWrapping="Wrap"
-                         VerticalContentAlignment="Center" MaxLines="3"/>
-            </ui:SettingsCard>
-
-            <!-- ================================================================ -->
-            <!-- 游戏设置 -->
-            <!-- ================================================================ -->
-            <TextBlock Text="游戏设置" FontSize="20" FontWeight="SemiBold"
-                       Margin="0,24,0,8" Opacity="0.8"/>
-
-            <!-- 游戏目录 -->
-            <ui:SettingsCard Header="游戏目录 (.minecraft)" Description="Minecraft 游戏所在的 .minecraft 目录路径">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Folder}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <StackPanel Orientation="Horizontal">
-                    <TextBox Text="{Binding MinecraftPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             MinWidth="280" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                    <Button Content="浏览" Command="{Binding BrowseMinecraftPathCommand}"
-                            Padding="12,4"/>
-                </StackPanel>
-            </ui:SettingsCard>
-
-            <!-- 版本隔离 -->
-            <ui:SettingsCard Header="版本隔离" Description="启用后每个版本拥有独立的 mods/saves/configs 目录（通过 --gameDir 实现）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Split20}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <ui:ToggleSwitch IsOn="{Binding EnableVersionIsolation, Mode=TwoWay}"/>
-            </ui:SettingsCard>
-
-            <!-- 启动前自动清理 -->
-            <ui:SettingsCard Header="启动前自动清理" Description="启动游戏前清理旧的 natives 临时文件（释放磁盘空间）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Delete}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <ui:ToggleSwitch IsOn="{Binding CleanBeforeLaunch, Mode=TwoWay}"/>
-            </ui:SettingsCard>
-
-            <!-- ================================================================ -->
-            <!-- 下载设置 -->
-            <!-- ================================================================ -->
-            <TextBlock Text="下载设置" FontSize="20" FontWeight="SemiBold"
-                       Margin="0,24,0,8" Opacity="0.8"/>
-
-            <!-- 下载源 -->
-            <ui:SettingsCard Header="下载源" Description="选择 Minecraft 文件下载源（国内镜像可加速下载）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Globe}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <ComboBox SelectedValue="{Binding SelectedDownloadSource, Mode=TwoWay}"
-                          SelectedValuePath="Tag"
-                          MinWidth="160">
-                    <ComboBoxItem Content="官方源" Tag="{x:Static models:DownloadSource.Official}"/>
-                    <ComboBoxItem Content="BMCLAPI 镜像" Tag="{x:Static models:DownloadSource.BMCLAPI}"/>
-                    <ComboBoxItem Content="MCBBS 镜像" Tag="{x:Static models:DownloadSource.MCBBS}"/>
-                </ComboBox>
-            </ui:SettingsCard>
-
-            <!-- 下载线程数 -->
-            <ui:SettingsCard Header="下载线程数" Description="同时下载的文件数（1~32，建议 4~8）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Processing}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <TextBox Text="{Binding DownloadThreads, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                         MinWidth="80" VerticalAlignment="Center"/>
-            </ui:SettingsCard>
-
-            <!-- 重试次数 -->
-            <ui:SettingsCard Header="重试次数" Description="下载失败时的自动重试次数（0~10）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.RepeatAll}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <TextBox Text="{Binding RetryCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                         MinWidth="80" VerticalAlignment="Center"/>
-            </ui:SettingsCard>
-
-            <!-- CurseForge API Key -->
-            <ui:SettingsCard Header="CurseForge API Key" Description="可选，用于 CurseForge 模组搜索。在 https://console.curseforge.com 获取">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Page}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <TextBox Text="{Binding CurseForgeApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                         MinWidth="280" VerticalAlignment="Center"/>
-            </ui:SettingsCard>
-
-            <!-- ================================================================ -->
-            <!-- 系统设置 -->
-            <!-- ================================================================ -->
-            <TextBlock Text="系统设置" FontSize="20" FontWeight="SemiBold"
-                       Margin="0,24,0,8" Opacity="0.8"/>
-
-            <!-- 日志路径 -->
-            <ui:SettingsCard Header="日志路径" Description="启动器日志文件的保存位置（按日期分文件）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Page}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <StackPanel Orientation="Horizontal">
-                    <TextBox Text="{Binding LogPath, Mode=OneWay}" IsReadOnly="True"
-                             MinWidth="280" Margin="0,0,8,0" VerticalAlignment="Center" Opacity="0.7"/>
-                    <Button Content="打开日志文件夹" Command="{Binding OpenLogFolderCommand}"
-                            Padding="12,4"/>
-                </StackPanel>
-            </ui:SettingsCard>
-
-            <!-- 开机自启 -->
-            <ui:SettingsCard Header="开机自启" Description="开机时自动启动 YCL 启动器（写入注册表）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.PowerButton}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <ui:ToggleSwitch IsOn="{Binding LaunchOnStartup, Mode=TwoWay}"/>
-            </ui:SettingsCard>
-
-            <!-- 启动时检查更新 -->
-            <ui:SettingsCard Header="启动时检查更新" Description="启动器启动时自动检查是否有新版本">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Sync}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <ui:ToggleSwitch IsOn="{Binding CheckUpdateOnStartup, Mode=TwoWay}"/>
-            </ui:SettingsCard>
-
-            <!-- 启动器更新仓库 -->
-            <ui:SettingsCard Header="启动器更新仓库" Description="GitHub 仓库地址（格式 owner/repo，用于检查更新）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.World}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <StackPanel Orientation="Horizontal">
-                    <TextBox Text="{Binding UpdateRepo, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             MinWidth="200" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <Button Content="立即检查" Command="{Binding CheckUpdateNowCommand}"
-                            Padding="12,4">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <!-- ====== 左侧分类导航 ====== -->
+            <Border Grid.Column="0" Margin="0,0,16,0"
+                    Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                    CornerRadius="8" Padding="4">
+                <StackPanel VerticalAlignment="Top">
+                    <!-- 搜索无结果提示（所有分类都被过滤时显示） -->
+                    <TextBlock Text="没有匹配的设置项" Opacity="0.5" FontSize="12" Margin="10,8"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsCheckingUpdate}" Value="True">
-                                        <Setter Property="IsEnabled" Value="False"/>
-                                        <Setter Property="Content" Value="检查中..."/>
+                                    <DataTrigger Binding="{Binding SearchKeyword}" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <!-- 1. 启动与管理 -->
+                    <Button Command="{Binding SelectCategoryCommand}" CommandParameter="Launch"
+                            Visibility="{Binding SearchKeyword, Converter={StaticResource SearchMatchConverter},
+                                ConverterParameter='启动 管理 Launch Java 路径 内存 窗口 全屏 关闭 JVM 参数'}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.DeveloperTools}" FontSize="18" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="启动与管理" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedCategoryKey}" Value="Launch">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseMediumBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- 2. 游戏设置 -->
+                    <Button Command="{Binding SelectCategoryCommand}" CommandParameter="Game"
+                            Visibility="{Binding SearchKeyword, Converter={StaticResource SearchMatchConverter},
+                                ConverterParameter='游戏 设置 Game .minecraft 目录 版本隔离 清理'}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Game}" FontSize="18" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="游戏设置" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedCategoryKey}" Value="Game">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseMediumBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- 3. 个性化（外观） -->
+                    <Button Command="{Binding SelectCategoryCommand}" CommandParameter="Personalize"
+                            Visibility="{Binding SearchKeyword, Converter={StaticResource SearchMatchConverter},
+                                ConverterParameter='个性化 外观 Personalize 主题 强调色 亚克力 云母 壁纸 动画 语言 简体 繁体 英语 主页 Homepage 预设 联网 本地'}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Tiles}" FontSize="18" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="个性化" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedCategoryKey}" Value="Personalize">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseMediumBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- 4. 下载 -->
+                    <Button Command="{Binding SelectCategoryCommand}" CommandParameter="Download"
+                            Visibility="{Binding SearchKeyword, Converter={StaticResource SearchMatchConverter},
+                                ConverterParameter='下载 Download 源 BMCLAPI 线程 重试 CurseForge 文件名 引擎 PCL Ghost'}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Download}" FontSize="18" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="下载" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedCategoryKey}" Value="Download">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseMediumBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- 5. 高级 -->
+                    <Button Command="{Binding SelectCategoryCommand}" CommandParameter="Advanced"
+                            Visibility="{Binding SearchKeyword, Converter={StaticResource SearchMatchConverter},
+                                ConverterParameter='高级 Advanced 更新 自启 日志 崩溃 报告 仓库'}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Settings}" FontSize="18" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="高级" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedCategoryKey}" Value="Advanced">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseMediumBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- 6. 关于 -->
+                    <Button Command="{Binding SelectCategoryCommand}" CommandParameter="About"
+                            Visibility="{Binding SearchKeyword, Converter={StaticResource SearchMatchConverter},
+                                ConverterParameter='关于 About 版本 编译号 链接'}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.World}" FontSize="18" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="关于" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedCategoryKey}" Value="About">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseMediumBrush}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </Button.Style>
                     </Button>
                 </StackPanel>
-            </ui:SettingsCard>
-
-            <!-- 更新检查结果显示（非空时显示） -->
-            <Border Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
-                    CornerRadius="6" Padding="12,8" Margin="0,4,0,0">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Visibility" Value="Visible"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding UpdateCheckResult}" Value="">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <TextBlock Text="{Binding UpdateCheckResult}" Opacity="0.8" TextWrapping="Wrap"/>
             </Border>
 
-            <!-- ================================================================ -->
-            <!-- 个性化设置（v26 新增：背景效果 / 自定义壁纸 / 不透明度 / 动画） -->
-            <!-- ================================================================ -->
-            <TextBlock Text="个性化" FontSize="20" FontWeight="SemiBold"
-                       Margin="0,24,0,8" Opacity="0.8"/>
+            <!-- ====== 右侧分类内容 ====== -->
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="8,0,0,0">
+                <StackPanel>
 
-            <!-- 背景效果 -->
-            <ui:SettingsCard Header="背景效果" Description="选择窗口的背景效果（亚克力 / 云母 / 云母Alt）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Asterisk}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <ComboBox SelectedValue="{Binding SelectedBackdrop, Mode=TwoWay}"
-                          SelectedValuePath="Tag"
-                          MinWidth="160">
-                    <ComboBoxItem Content="默认" Tag="{x:Static models:BackdropType.Default}"/>
-                    <ComboBoxItem Content="亚克力 Acrylic" Tag="{x:Static models:BackdropType.Acrylic}"/>
-                    <ComboBoxItem Content="云母 Mica" Tag="{x:Static models:BackdropType.Mica}"/>
-                    <ComboBoxItem Content="云母Alt MicaAlt" Tag="{x:Static models:BackdropType.MicaAlt}"/>
-                </ComboBox>
-            </ui:SettingsCard>
+                <!-- ============ 1. 启动与管理 ============ -->
+                <StackPanel Visibility="{Binding SelectedCategoryKey, Converter={StaticResource CategoryMatchConverter},
+                                ConverterParameter='Launch'}">
+                    <TextBlock Text="启动与管理" Style="{StaticResource SectionHeaderStyle}"/>
 
-            <!-- 自定义壁纸 -->
-            <ui:SettingsCard Header="自定义壁纸" Description="设置一张背景图片（png/jpg），为空时仅显示背景效果">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Photo}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <StackPanel Orientation="Horizontal">
-                    <TextBox Text="{Binding WallpaperPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             MinWidth="220" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                    <Button Content="浏览" Command="{Binding BrowseWallpaperCommand}"
-                            Padding="12,4" Margin="0,0,8,0"/>
-                    <Button Content="清除" Command="{Binding ClearWallpaperCommand}"
-                            Padding="12,4" Margin="0,0,8,0"/>
-                    <!-- 小预览 Image：WallpaperPath 为空时折叠 -->
-                    <Image Source="{Binding WallpaperPath}"
-                           Width="48" Height="48" Stretch="UniformToFill">
-                        <Image.Style>
-                            <Style TargetType="Image">
-                                <Setter Property="Visibility" Value="Visible"/>
+                    <ui:SettingsCard Header="Java 路径" Description="启动游戏使用的 Java 运行时（javaw.exe）；可在 Java 管理页自动选择或在线安装">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.DeveloperTools}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox Text="{Binding JavaPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     MinWidth="220" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <Button Content="浏览" Command="{Binding BrowseJavaPathCommand}" Padding="12,4" Margin="0,0,8,0"/>
+                            <Button Content="Java 管理" Command="{Binding GoToJavaPageCommand}" Padding="12,4" Margin="0,0,8,0"/>
+                            <Button Content="在线安装" Command="{Binding InstallJavaOnlineCommand}" Padding="12,4"/>
+                        </StackPanel>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="最大内存 (-Xmx)" Description="Java 虚拟机最大堆内存，单位 MB（建议 2048~4096）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.SDCard}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox Text="{Binding MaxMemory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     MinWidth="100" VerticalAlignment="Center"/>
+                            <TextBlock Text="MB" VerticalAlignment="Center" Margin="8,0,0,0" Opacity="0.6"/>
+                        </StackPanel>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="初始内存 (-Xms)" Description="Java 虚拟机初始堆内存，单位 MB（建议 512~1024）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.SDCard}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox Text="{Binding MinMemory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     MinWidth="100" VerticalAlignment="Center"/>
+                            <TextBlock Text="MB" VerticalAlignment="Center" Margin="8,0,0,0" Opacity="0.6"/>
+                        </StackPanel>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="游戏窗口大小" Description="启动时游戏窗口的宽度和高度（像素）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.ViewAll}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox Text="{Binding WindowWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     MinWidth="70" VerticalAlignment="Center"/>
+                            <TextBlock Text=" × " VerticalAlignment="Center" Margin="4,0"/>
+                            <TextBox Text="{Binding WindowHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     MinWidth="70" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="像素" VerticalAlignment="Center" Opacity="0.6"/>
+                        </StackPanel>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="全屏启动" Description="启动游戏时自动进入全屏模式（--fullscreen 参数）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.FitPage}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ui:ToggleSwitch IsOn="{Binding FullscreenOnLaunch, Mode=TwoWay}"/>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="启动后关闭启动器" Description="游戏成功启动后自动关闭启动器窗口，节省内存">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.ChromeBackToWindow}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ui:ToggleSwitch IsOn="{Binding CloseAfterLaunch, Mode=TwoWay}"/>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="高级 JVM 参数" Description="自定义追加的 JVM 参数，多个参数用空格分隔（如 -XX:+UseG1GC）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Settings}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <TextBox Text="{Binding ExtraJvmArgs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 MinWidth="300" AcceptsReturn="True" TextWrapping="Wrap"
+                                 VerticalContentAlignment="Center" MaxLines="3"/>
+                    </ui:SettingsCard>
+                </StackPanel>
+
+                <!-- ============ 2. 游戏设置 ============ -->
+                <StackPanel Visibility="{Binding SelectedCategoryKey, Converter={StaticResource CategoryMatchConverter},
+                                ConverterParameter='Game'}">
+                    <TextBlock Text="游戏设置" Style="{StaticResource SectionHeaderStyle}"/>
+
+                    <ui:SettingsCard Header="游戏目录 (.minecraft)" Description="Minecraft 游戏所在的 .minecraft 目录路径">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Folder}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox Text="{Binding MinecraftPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     MinWidth="260" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <Button Content="浏览" Command="{Binding BrowseMinecraftPathCommand}" Padding="12,4"/>
+                        </StackPanel>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="版本隔离" Description="启用后每个版本拥有独立的 mods/saves/configs 目录">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Tiles}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ui:ToggleSwitch IsOn="{Binding EnableVersionIsolation, Mode=TwoWay}"/>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="启动前清理临时文件" Description="启动游戏前清理旧 natives 等临时文件">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Sync}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ui:ToggleSwitch IsOn="{Binding CleanBeforeLaunch, Mode=TwoWay}"/>
+                    </ui:SettingsCard>
+                </StackPanel>
+
+                <!-- ============ 3. 个性化（外观） ============ -->
+                <StackPanel Visibility="{Binding SelectedCategoryKey, Converter={StaticResource CategoryMatchConverter},
+                                ConverterParameter='Personalize'}">
+                    <TextBlock Text="个性化（外观）" Style="{StaticResource SectionHeaderStyle}"/>
+
+                    <!-- 界面语言（v26.1.0.5 多语言） -->
+                    <ui:SettingsCard Header="界面语言" Description="切换启动器界面语言（简体中文 / 繁体中文 / 英语）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.World}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ComboBox SelectedValue="{Binding SelectedLanguage, Mode=TwoWay}" SelectedValuePath="Tag" MinWidth="180">
+                            <ComboBoxItem Content="简体中文" Tag="{x:Static models:Language.zhCN}"/>
+                            <ComboBoxItem Content="繁體中文" Tag="{x:Static models:Language.zhTW}"/>
+                            <ComboBoxItem Content="English" Tag="{x:Static models:Language.en}"/>
+                        </ComboBox>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="主题模式" Description="选择启动器的明暗主题（可跟随系统）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.ViewAll}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ComboBox SelectedValue="{Binding SelectedThemeMode, Mode=TwoWay}" SelectedValuePath="Tag" MinWidth="160">
+                            <ComboBoxItem Content="跟随系统" Tag="{x:Static models:ThemeMode.Default}"/>
+                            <ComboBoxItem Content="亮色" Tag="{x:Static models:ThemeMode.Light}"/>
+                            <ComboBoxItem Content="暗色" Tag="{x:Static models:ThemeMode.Dark}"/>
+                        </ComboBox>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="使用系统强调色" Description="关闭后可自定义启动器强调色">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Tiles}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ui:ToggleSwitch IsOn="{Binding UseSystemAccentColor, Mode=TwoWay}"/>
+                    </ui:SettingsCard>
+
+                    <!-- 自定义强调色色板 -->
+                    <ui:SettingsCard Header="强调色" Description="点击色块选择自定义强调色">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Tiles}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ItemsControl ItemsSource="{Binding PresetAccentColors}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Command="{Binding DataContext.SelectAccentColorCommand,
+                                            RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}" Margin="3" Padding="0">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Setter Property="Width" Value="28"/>
+                                                <Setter Property="Height" Value="28"/>
+                                            </Style>
+                                        </Button.Style>
+                                        <Rectangle Width="22" Height="22" RadiusX="4" RadiusY="4">
+                                            <Rectangle.Fill>
+                                                <SolidColorBrush Color="{Binding}"/>
+                                            </Rectangle.Fill>
+                                        </Rectangle>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="背景效果" Description="窗口背景材质（亚克力 / 云母等，需 Windows 11）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.ViewAll}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ComboBox SelectedValue="{Binding SelectedBackdrop, Mode=TwoWay}" SelectedValuePath="Tag" MinWidth="160">
+                            <ComboBoxItem Content="默认" Tag="{x:Static models:BackdropType.Default}"/>
+                            <ComboBoxItem Content="亚克力" Tag="{x:Static models:BackdropType.Acrylic}"/>
+                            <ComboBoxItem Content="云母" Tag="{x:Static models:BackdropType.Mica}"/>
+                            <ComboBoxItem Content="云母 Alt" Tag="{x:Static models:BackdropType.MicaAlt}"/>
+                        </ComboBox>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="自定义壁纸" Description="设置一张背景壁纸图片（png/jpg），为空则不使用">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Camera}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox Text="{Binding WallpaperPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     MinWidth="200" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <Button Content="浏览" Command="{Binding BrowseWallpaperCommand}" Padding="12,4" Margin="0,0,8,0"/>
+                            <Button Content="清除" Command="{Binding ClearWallpaperCommand}" Padding="12,4"/>
+                        </StackPanel>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="壁纸不透明度" Description="壁纸显示的不透明程度（0~1）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.ViewAll}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <StackPanel Orientation="Horizontal">
+                            <Slider Value="{Binding WallpaperOpacity, Mode=TwoWay}" Minimum="0" Maximum="1"
+                                    TickFrequency="0.05" IsSnapToTickEnabled="True" Width="180" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding WallpaperOpacity, StringFormat=F2}" VerticalAlignment="Center" Margin="12,0,0,0" Opacity="0.7"/>
+                        </StackPanel>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="页面切换动画" Description="启用页面切换时的淡入与上滑动画">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.ViewAll}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ui:ToggleSwitch IsOn="{Binding EnableAnimations, Mode=TwoWay}"/>
+                    </ui:SettingsCard>
+
+                    <!-- 主页类型：预设 / 联网 / 本地 -->
+                    <ui:SettingsCard Header="主页类型" Description="选择启动器主页显示的内容来源（预设版本动态 / 联网 URL / 本地文件）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Home}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ComboBox SelectedValue="{Binding HomepageType, Mode=TwoWay}" SelectedValuePath="Tag" MinWidth="180">
+                            <ComboBoxItem Content="预设（版本动态）" Tag="{x:Static models:HomepageType.Preset}"/>
+                            <ComboBoxItem Content="联网（URL）" Tag="{x:Static models:HomepageType.Online}"/>
+                            <ComboBoxItem Content="本地文件" Tag="{x:Static models:HomepageType.Local}"/>
+                        </ComboBox>
+                    </ui:SettingsCard>
+
+                    <!-- 主页 URL：HomepageType=Online 时显示 -->
+                    <ui:SettingsCard Header="主页 URL" Description="联网模式下主页的 URL 地址（HomepageType=Online 时生效）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.World}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <TextBox Text="{Binding HomepageUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 MinWidth="320" VerticalAlignment="Center"
+                                 ui:ControlHelper.PlaceholderText="https://www.minecraft.net/"/>
+                        <ui:SettingsCard.Style>
+                            <Style TargetType="ui:SettingsCard">
+                                <Setter Property="Visibility" Value="Collapsed"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding WallpaperPath}" Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    <DataTrigger Binding="{Binding HomepageType}" Value="Online">
+                                        <Setter Property="Visibility" Value="Visible"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </Image.Style>
-                    </Image>
+                        </ui:SettingsCard.Style>
+                    </ui:SettingsCard>
+
+                    <!-- 本地主页文件：HomepageType=Local 时显示 -->
+                    <ui:SettingsCard Header="本地主页文件" Description="本地模式下的 HTML 或图片文件路径（HomepageType=Local 时生效）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Folder}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox Text="{Binding HomepageLocalPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     MinWidth="260" Margin="0,0,8,0" VerticalAlignment="Center"
+                                     ui:ControlHelper.PlaceholderText="选择 HTML 或图片文件..."/>
+                            <Button Content="浏览" Command="{Binding BrowseHomepageLocalPathCommand}" Padding="12,4"/>
+                        </StackPanel>
+                        <ui:SettingsCard.Style>
+                            <Style TargetType="ui:SettingsCard">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HomepageType}" Value="Local">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:SettingsCard.Style>
+                    </ui:SettingsCard>
                 </StackPanel>
-            </ui:SettingsCard>
 
-            <!-- 壁纸不透明度 -->
-            <ui:SettingsCard Header="壁纸不透明度" Description="调整壁纸的透明度（0=完全透明，1=完全不透明）">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Brightness}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <StackPanel Orientation="Horizontal" MinWidth="280">
-                    <Slider Value="{Binding WallpaperOpacity, Mode=TwoWay}"
-                            Minimum="0" Maximum="1" TickFrequency="0.05"
-                            IsSnapToTickEnabled="True"
-                            MinWidth="200" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding WallpaperOpacity, StringFormat={}{0:F2}}"
-                               VerticalAlignment="Center" Margin="8,0,0,0" Opacity="0.7"/>
+                <!-- ============ 4. 下载 ============ -->
+                <StackPanel Visibility="{Binding SelectedCategoryKey, Converter={StaticResource CategoryMatchConverter},
+                                ConverterParameter='Download'}">
+                    <TextBlock Text="下载" Style="{StaticResource SectionHeaderStyle}"/>
+
+                    <ui:SettingsCard Header="下载源" Description="默认使用 BMCLAPI 国内镜像，可在官方源与镜像间切换">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Download}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ComboBox SelectedValue="{Binding SelectedDownloadSource, Mode=TwoWay}" SelectedValuePath="Tag" MinWidth="180">
+                            <ComboBoxItem Content="官方源（Mojang）" Tag="{x:Static models:DownloadSource.Official}"/>
+                            <ComboBoxItem Content="BMCLAPI 镜像（推荐）" Tag="{x:Static models:DownloadSource.BMCLAPI}"/>
+                            <ComboBoxItem Content="MCBBS 镜像" Tag="{x:Static models:DownloadSource.MCBBS}"/>
+                        </ComboBox>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="下载引擎" Description="选择下载文件时使用的引擎（默认/PCL CE/Ghost Downloader 3）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Download}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ComboBox SelectedValue="{Binding DownloadEngine, Mode=TwoWay}" SelectedValuePath="Tag" MinWidth="200">
+                            <ComboBoxItem Content="默认（多线程）" Tag="{x:Static models:DownloadEngine.Default}"/>
+                            <ComboBoxItem Content="PCL CE" Tag="{x:Static models:DownloadEngine.PclCe}"/>
+                            <ComboBoxItem Content="Ghost Downloader 3" Tag="{x:Static models:DownloadEngine.Ghost}"/>
+                        </ComboBox>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="下载线程数" Description="并发下载线程数（1~64），默认 BMCLAPI 镜像下建议 8~16">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Sync}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <StackPanel Orientation="Horizontal">
+                            <Slider Value="{Binding DownloadThreads, Mode=TwoWay}" Minimum="1" Maximum="64"
+                                     TickFrequency="1" IsSnapToTickEnabled="True" Width="180" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding DownloadThreads}" VerticalAlignment="Center" Margin="12,0,0,0" Opacity="0.7"/>
+                        </StackPanel>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="重试次数" Description="下载失败时的自动重试次数（0~10）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Sync}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <StackPanel Orientation="Horizontal">
+                            <Slider Value="{Binding RetryCount, Mode=TwoWay}" Minimum="0" Maximum="10"
+                                     TickFrequency="1" IsSnapToTickEnabled="True" Width="180" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding RetryCount}" VerticalAlignment="Center" Margin="12,0,0,0" Opacity="0.7"/>
+                        </StackPanel>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="资源文件名格式" Description="{}{name}=名称，{file}=原文件名；如 {name}-{file}、[{name}{file}、{file}-{name}">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Package}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ComboBox SelectedValue="{Binding ResourceFileNameFormat, Mode=TwoWay}" SelectedValuePath="Tag" MinWidth="240">
+                            <ComboBoxItem Content="{}{name}-{file}  →  名称-文件名" Tag="{}{name}-{file}"/>
+                            <ComboBoxItem Content="{}[{name}{file}  →  [名称文件名" Tag="{}[{name}{file}"/>
+                            <ComboBoxItem Content="{}{name}{file}  →  名称文件名" Tag="{}{name}{file}"/>
+                            <ComboBoxItem Content="{}{file}-{name}  →  文件名-名称" Tag="{}{file}-{name}"/>
+                            <ComboBoxItem Content="{}{file}  →  仅文件名" Tag="{}{file}"/>
+                        </ComboBox>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="CurseForge API Key" Description="可选，用于在线模组搜索；为空时仅使用 Modrinth">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.World}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <TextBox Text="{Binding CurseForgeApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 MinWidth="300" VerticalAlignment="Center"/>
+                    </ui:SettingsCard>
                 </StackPanel>
-            </ui:SettingsCard>
 
-            <!-- 启用动画 -->
-            <ui:SettingsCard Header="启用页面切换动画" Description="开关页面切换时的淡入+上滑动画效果">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.SlowMotionOn}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <ui:ToggleSwitch IsOn="{Binding EnableAnimations, Mode=TwoWay}"/>
-            </ui:SettingsCard>
+                <!-- ============ 5. 高级 ============ -->
+                <StackPanel Visibility="{Binding SelectedCategoryKey, Converter={StaticResource CategoryMatchConverter},
+                                ConverterParameter='Advanced'}">
+                    <TextBlock Text="{DynamicResource Settings_Advanced}" Style="{StaticResource SectionHeaderStyle}"/>
 
-            <!-- ================================================================ -->
-            <!-- 外观设置（主题） -->
-            <!-- ================================================================ -->
-            <TextBlock Text="外观" FontSize="20" FontWeight="SemiBold"
-                       Margin="0,24,0,8" Opacity="0.8"/>
+                    <ui:SettingsCard Header="启动时检查更新" Description="启动器启动时自动检查 GitHub 上的新版本">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Sync}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ui:ToggleSwitch IsOn="{Binding CheckUpdateOnStartup, Mode=TwoWay}"/>
+                    </ui:SettingsCard>
 
-            <!-- 主题模式 -->
-            <ui:SettingsCard Header="主题模式" Description="选择启动器的亮色 / 暗色 / 跟随系统主题">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Color}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <ComboBox SelectedValue="{Binding SelectedThemeMode, Mode=TwoWay}"
-                          SelectedValuePath="Tag"
-                          MinWidth="160">
-                    <ComboBoxItem Content="跟随系统" Tag="{x:Static models:ThemeMode.Default}"/>
-                    <ComboBoxItem Content="亮色" Tag="{x:Static models:ThemeMode.Light}"/>
-                    <ComboBoxItem Content="暗色" Tag="{x:Static models:ThemeMode.Dark}"/>
-                </ComboBox>
-            </ui:SettingsCard>
+                    <ui:SettingsCard Header="更新源仓库" Description='检查更新使用的 GitHub 仓库（格式 "owner/repo"）'>
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.World}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <TextBox Text="{Binding UpdateRepo, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 MinWidth="240" VerticalAlignment="Center"/>
+                    </ui:SettingsCard>
 
-            <!-- 跟随系统强调色 -->
-            <ui:SettingsCard Header="跟随系统强调色"
-                             Description="开启后使用 Windows 系统强调色，关闭后可选择自定义颜色">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Highlight}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <ui:ToggleSwitch IsOn="{Binding UseSystemAccentColor, Mode=TwoWay}"/>
-            </ui:SettingsCard>
+                    <ui:SettingsCard Header="立即检查更新" Description="手动触发一次更新检查">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Sync}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="检查更新" Command="{Binding CheckUpdateNowCommand}" Padding="12,4" Margin="0,0,12,0"/>
+                            <TextBlock Text="{Binding UpdateCheckResult}" VerticalAlignment="Center" Opacity="0.7" TextWrapping="Wrap" MaxWidth="280"/>
+                        </StackPanel>
+                    </ui:SettingsCard>
 
-            <!-- 自定义强调色 -->
-            <ui:SettingsCard Header="自定义强调色" Description="点击下方色块选择喜欢的强调色">
-                <ui:SettingsCard.HeaderIcon>
-                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.PenPalette}"/>
-                </ui:SettingsCard.HeaderIcon>
-                <ItemsControl ItemsSource="{Binding PresetAccentColors}"
-                              IsEnabled="{Binding IsCustomAccentColorEnabled}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Button Width="40" Height="40" Margin="4"
-                                    Command="{Binding DataContext.SelectAccentColorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    CommandParameter="{Binding}"
-                                    ToolTip="{Binding}">
-                                <Button.Background>
-                                    <SolidColorBrush Color="{Binding}"/>
-                                </Button.Background>
-                            </Button>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ui:SettingsCard>
+                    <ui:SettingsCard Header="开机自启动" Description="开机时自动启动 YCL（写入注册表）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Settings}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <ui:ToggleSwitch IsOn="{Binding LaunchOnStartup, Mode=TwoWay}"/>
+                    </ui:SettingsCard>
 
-        </StackPanel>
-    </ScrollViewer>
+                    <ui:SettingsCard Header="日志文件夹" Description="启动器运行日志所在目录">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Folder}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding LogPath}" VerticalAlignment="Center" Opacity="0.6"
+                                       MaxWidth="320" TextTrimming="CharacterEllipsis" Margin="0,0,12,0"/>
+                            <Button Content="打开" Command="{Binding OpenLogFolderCommand}" Padding="12,4"/>
+                        </StackPanel>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="崩溃报告文件夹" Description="游戏崩溃报告所在目录（启动器文件夹/clog）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Folder}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding CrashLogPath}" VerticalAlignment="Center" Opacity="0.6"
+                                       MaxWidth="320" TextTrimming="CharacterEllipsis" Margin="0,0,12,0"/>
+                            <Button Content="打开" Command="{Binding OpenCrashLogFolderCommand}" Padding="12,4"/>
+                        </StackPanel>
+                    </ui:SettingsCard>
+                </StackPanel>
+
+                <!-- ============ 6. 关于 ============ -->
+                <StackPanel Visibility="{Binding SelectedCategoryKey, Converter={StaticResource CategoryMatchConverter},
+                                ConverterParameter='About'}">
+                    <TextBlock Text="{DynamicResource Settings_About}" Style="{StaticResource SectionHeaderStyle}"/>
+
+                    <ui:SettingsCard Header="版本号" Description="当前启动器版本">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Info}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <TextBlock Text="{Binding AppVersion, Mode=OneWay}" VerticalAlignment="Center" Opacity="0.8"/>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="编译号" Description="构建标识（快照版）">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Info}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <TextBlock Text="{Binding BuildNumber, Mode=OneWay}" VerticalAlignment="Center" Opacity="0.8"/>
+                    </ui:SettingsCard>
+
+                    <ui:SettingsCard Header="完整关于页" Description="查看启动器详情、开源协议与链接">
+                        <ui:SettingsCard.HeaderIcon>
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.World}"/>
+                        </ui:SettingsCard.HeaderIcon>
+                        <Button Content="打开关于页" Command="{Binding OpenAboutPageCommand}" Padding="12,4"/>
+                    </ui:SettingsCard>
+                </StackPanel>
+                </StackPanel>
+
+            </ScrollViewer>
+        </Grid>
+    </Grid>
 </UserControl>

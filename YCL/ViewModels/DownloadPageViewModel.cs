@@ -3,12 +3,17 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using iNKORE.UI.WPF.Modern.Controls;
 using YCL.Core.Download;
+using YCL.Core.Mods;
+using YCL.Core.Resources;
 using YCL.Core.Utils;
 using YCL.Core.Versions;
 using YCL.Models;
@@ -18,532 +23,484 @@ using YCL.Services;
 namespace YCL.ViewModels
 {
     /// <summary>
-    /// 下载页 ViewModel：负责下载 Minecraft 版本文件，展示下载进度，
-    /// 支持暂停 / 继续 / 取消。
+    /// 下载页 ViewModel：微软商店风格的资源下载中心。
     ///
-    /// 下载流程：
-    /// 1. 用户输入版本 id（如 "1.20.4"），点击"开始下载"
-    /// 2. 从版本清单服务获取版本条目（含版本 JSON 的 URL）
-    /// 3. 下载版本 JSON 到 .minecraft/versions/&lt;id&gt;/&lt;id&gt;.json
-    /// 4. 用版本解析服务解析版本 JSON（合并 inheritsFrom）
-    /// 5. 调用 MinecraftFileDownloader 下载所有文件（client.jar、libraries、assets、logging）
-    ///    注意：assets objects 需要 assetIndex 下载后才能构造，所以可能需要二次下载
+    /// 主要功能：
+    /// 1. 顶部搜索框 + 分类切换（游戏 / 资源 / 收藏夹）
+    /// 2. 游戏分类：游戏本体（版本下载）、整合包
+    /// 3. 资源分类：模组、整合包、资源包、光影包、数据包、世界
+    /// 4. 收藏夹：本地 JSON 文件存储已收藏资源 id
+    /// 5. 搜索结果以卡片样式展示，每张卡片有"详情"按钮进入资源详情页
+    /// 6. 多线程下载：使用注入的 MultiThreadDownloader，线程数从配置读取
+    /// 7. 文件名格式：根据 AppConfig.ResourceFileNameFormat 生成
     /// </summary>
     public partial class DownloadPageViewModel : ViewModelBase
     {
-        private readonly IMinecraftFileDownloader _minecraftFileDownloader;
+        private readonly IModDownloadService _modDownloadService;
+        private readonly IResourceService _resourceService;
+        private readonly IModpackService _modpackService;
+        private readonly IVersionManager _versionManager;
         private readonly IVersionManifestService _manifestService;
         private readonly IConfigService _configService;
-        private readonly IVersionResolver _versionResolver;
+        private readonly MultiThreadDownloader _multiThreadDownloader;
 
-        /// <summary>模组管理子页面 ViewModel（嵌入下载页"模组"Tab）</summary>
-        public ModPageViewModel ModPageVM { get; }
+        /// <summary>资源详情页 ViewModel（由 DownloadPage 内嵌显示）</summary>
+        public ResourceDetailPageViewModel DetailVM { get; }
 
-        /// <summary>资源中心子页面 ViewModel（嵌入下载页"资源包"Tab）</summary>
-        public ResourcePageViewModel ResourcePageVM { get; }
+        /// <summary>收藏夹本地存储路径（程序根目录下 favorites.json）</summary>
+        private static readonly string FavoritesFilePath =
+            Path.Combine(AppContext.BaseDirectory, "favorites.json");
 
-        /// <summary>取消令牌源（每次下载创建一个新的）</summary>
-        private CancellationTokenSource? _cts;
-
-        /// <summary>按目标路径索引的文件项字典（用于快速更新进度）</summary>
-        private readonly Dictionary<string, DownloadFileItem> _fileItemMap = new();
-
-        /// <summary>文件项列表锁（保护 _fileItemMap 与 ActiveFiles）</summary>
-        private readonly object _fileListLock = new();
-
-        /// <summary>历史下载日志（用于显示已完成/失败的任务）</summary>
-        private const int MaxActiveFiles = 30;
+        /// <summary>下载任务取消令牌</summary>
+        private CancellationTokenSource? _downloadCts;
 
         public DownloadPageViewModel(
-            IMinecraftFileDownloader minecraftFileDownloader,
+            IModDownloadService modDownloadService,
+            IResourceService resourceService,
+            IModpackService modpackService,
+            IVersionManager versionManager,
             IVersionManifestService manifestService,
             IConfigService configService,
-            IVersionResolver versionResolver,
-            ModPageViewModel modPageVM,
-            ResourcePageViewModel resourcePageVM)
+            MultiThreadDownloader multiThreadDownloader,
+            ResourceDetailPageViewModel detailVM)
         {
-            _minecraftFileDownloader = minecraftFileDownloader;
+            _modDownloadService = modDownloadService;
+            _resourceService = resourceService;
+            _modpackService = modpackService;
+            _versionManager = versionManager;
             _manifestService = manifestService;
             _configService = configService;
-            _versionResolver = versionResolver;
-            ModPageVM = modPageVM;
-            ResourcePageVM = resourcePageVM;
+            _multiThreadDownloader = multiThreadDownloader;
+            DetailVM = detailVM;
 
-            // 订阅下载器事件
-            _minecraftFileDownloader.ProgressChanged += OnProgressChanged;
-            _minecraftFileDownloader.TaskProgressChanged += OnTaskProgressChanged;
-            _minecraftFileDownloader.TaskCompleted += OnTaskCompleted;
+            // 把详情页 VM 的"返回列表"事件转发到本 VM
+            DetailVM.BackRequested += OnDetailBackRequested;
+            // 把详情页 VM 的"收藏状态变化"事件转发到本 VM，用于刷新收藏夹列表
+            DetailVM.FavoriteChanged += OnDetailFavoriteChanged;
 
-            // 显示当前下载源
+            // 初始化分类列表
+            InitCategoryItems();
+            SelectedCategoryIndex = 0;
+
+            // 默认下载源为 BMCLAPI（仅在配置仍为默认值 Official 时自动切换）
+            if (_configService.Current.DownloadSource == DownloadSource.Official)
+            {
+                _configService.Current.DownloadSource = DownloadSource.BMCLAPI;
+                _configService.Save();
+            }
             UpdateDownloadSourceDisplay();
 
-            // 立即异步加载版本清单（用于后续查找版本）
-            _ = RefreshManifestAsync();
+            // 加载收藏夹
+            LoadFavorites();
         }
 
-        /// <summary>当前正在下载/最近下载的文件列表（每项含文件名、进度、速度）</summary>
-        public ObservableCollection<DownloadFileItem> ActiveFiles { get; } = new();
+        // ====== 分类管理 ======
 
-        /// <summary>用户输入的版本 id（如 "1.20.4"）</summary>
+        /// <summary>左侧分类列表（按"游戏/资源/收藏"分组显示）</summary>
+        public ObservableCollection<CategoryItem> CategoryItems { get; } = new();
+
+        /// <summary>初始化左侧分类列表（索引顺序对应 SelectedCategoryIndex 取值）</summary>
+        private void InitCategoryItems()
+        {
+            // 游戏组：0~1
+            CategoryItems.Add(new CategoryItem("🎮", "游戏本体", "游戏"));
+            CategoryItems.Add(new CategoryItem("📦", "整合包", "游戏"));
+            // 资源组：2~7
+            CategoryItems.Add(new CategoryItem("🧩", "模组", "资源"));
+            CategoryItems.Add(new CategoryItem("📦", "整合包", "资源"));
+            CategoryItems.Add(new CategoryItem("🎨", "资源包", "资源"));
+            CategoryItems.Add(new CategoryItem("✨", "光影包", "资源"));
+            CategoryItems.Add(new CategoryItem("📊", "数据包", "资源"));
+            CategoryItems.Add(new CategoryItem("🌍", "世界", "资源"));
+            // 收藏组：8
+            CategoryItems.Add(new CategoryItem("⭐", "收藏夹", "收藏"));
+        }
+
+        /// <summary>当前选中的左侧分类索引（0~8）</summary>
         [ObservableProperty]
-        private string _versionIdInput = "1.20.4";
+        private int _selectedCategoryIndex;
 
-        /// <summary>状态文字（显示当前操作状态）</summary>
+        /// <summary>分类切换时：自动触发搜索（已有查询时）或清空列表</summary>
+        partial void OnSelectedCategoryIndexChanged(int value)
+        {
+            // 切到收藏夹时刷新收藏列表，其它分类若有搜索词则重新搜索
+            if (value == 8)
+            {
+                RefreshFavorites();
+            }
+            else if (!string.IsNullOrWhiteSpace(SearchQuery))
+            {
+                _ = SearchAsync();
+            }
+            else
+            {
+                SearchResults.Clear();
+                HintMessage = "请输入关键字后点击搜索。";
+            }
+        }
+
+        /// <summary>当前分类对应的资源种类（用于详情页判断下载方式）</summary>
+        public ResourceKind CurrentKind => SelectedCategoryIndex switch
+        {
+            0 => ResourceKind.GameVersion,
+            1 => ResourceKind.Modpack,
+            2 => ResourceKind.Mod,
+            3 => ResourceKind.Modpack,
+            4 => ResourceKind.ResourcePack,
+            5 => ResourceKind.ShaderPack,
+            6 => ResourceKind.Datapack,
+            7 => ResourceKind.World,
+            _ => ResourceKind.Unknown
+        };
+
+        // ====== 搜索 ======
+
+        /// <summary>搜索关键字（双向绑定搜索框）</summary>
         [ObservableProperty]
-        private string _statusText = "就绪。输入版本 id 后点击\"开始下载\"。";
+        private string _searchQuery = string.Empty;
 
-        /// <summary>整体进度百分比（0~100，-1 表示不确定）</summary>
+        /// <summary>搜索结果列表（统一卡片格式）</summary>
+        public ObservableCollection<ResourceCard> SearchResults { get; } = new();
+
+        /// <summary>是否正在搜索</summary>
         [ObservableProperty]
-        private double _overallPercent = -1;
+        private bool _isSearching;
 
-        /// <summary>总任务数</summary>
-        [ObservableProperty]
-        private int _totalFiles;
-
-        /// <summary>已完成任务数</summary>
-        [ObservableProperty]
-        private int _completedFiles;
-
-        /// <summary>失败任务数</summary>
-        [ObservableProperty]
-        private int _failedFiles;
-
-        /// <summary>总字节数（人类可读，如 "1.2 GB"）</summary>
-        [ObservableProperty]
-        private string _totalBytesDisplay = "-";
-
-        /// <summary>已下载字节数（人类可读）</summary>
-        [ObservableProperty]
-        private string _downloadedBytesDisplay = "-";
-
-        /// <summary>当前下载速度（人类可读，如 "2.5 MB/s"）</summary>
-        [ObservableProperty]
-        private string _speedDisplay = "-";
-
-        /// <summary>当前下载源显示文字</summary>
-        [ObservableProperty]
-        private string _downloadSourceDisplay = "官方源";
-
-        /// <summary>是否正在下载</summary>
-        [ObservableProperty]
-        private bool _isDownloading;
-
-        /// <summary>是否已暂停</summary>
-        [ObservableProperty]
-        private bool _isPaused;
-
-        /// <summary>是否正在加载版本清单</summary>
-        [ObservableProperty]
-        private bool _isLoadingManifest;
-
-        /// <summary>提示信息（如错误提示）</summary>
+        /// <summary>提示信息</summary>
         [ObservableProperty]
         private string? _hintMessage;
 
-        /// <summary>开始下载按钮是否可用</summary>
-        [ObservableProperty]
-        private bool _canStartDownload = true;
-
-        /// <summary>整合包导入状态信息</summary>
-        [ObservableProperty]
-        private string _modpackStatus = "选择一个整合包 .zip 文件进行导入安装。";
-
-        /// <summary>是否正在导入整合包</summary>
-        [ObservableProperty]
-        private bool _isImportingModpack;
-
-        /// <summary>已安装的光影包列表（文件名）</summary>
-        public ObservableCollection<string> ShaderPacks { get; } = new();
-
-        /// <summary>光影包扫描状态</summary>
-        [ObservableProperty]
-        private string _shaderPackStatus = "点击刷新扫描已安装的光影包。";
-
-        /// <summary>导入整合包命令</summary>
+        /// <summary>搜索命令：根据当前分类调用对应服务</summary>
         [RelayCommand]
-        private async Task ImportModpackAsync()
+        private async Task SearchAsync()
         {
-            if (IsImportingModpack) return;
+            if (IsSearching) return;
 
-            var dialog = new Microsoft.Win32.OpenFileDialog
+            // 收藏夹不参与搜索
+            if (SelectedCategoryIndex == 8)
             {
-                Title = "选择整合包文件",
-                Filter = "整合包 (*.zip;*.mrpack)|*.zip;*.mrpack|所有文件 (*.*)|*.*"
-            };
-
-            if (dialog.ShowDialog() != true) return;
-
-            IsImportingModpack = true;
-            ModpackStatus = "正在导入整合包：" + System.IO.Path.GetFileName(dialog.FileName);
-
-            try
-            {
-                // 简单实现：将整合包文件复制到 .minecraft/modpacks 目录
-                var minecraftPath = _configService.Current.MinecraftPath;
-                if (string.IsNullOrWhiteSpace(minecraftPath))
-                {
-                    minecraftPath = System.IO.Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                        ".minecraft");
-                }
-
-                var modpacksDir = System.IO.Path.Combine(minecraftPath, "modpacks");
-                System.IO.Directory.CreateDirectory(modpacksDir);
-
-                var destPath = System.IO.Path.Combine(modpacksDir, System.IO.Path.GetFileName(dialog.FileName));
-                System.IO.File.Copy(dialog.FileName, destPath, true);
-
-                ModpackStatus = "整合包已导入：" + System.IO.Path.GetFileName(dialog.FileName) +
-                                "\n文件位置：" + destPath +
-                                "\n请使用对应工具解压安装。";
-                Logger.Info("整合包已导入到 " + destPath);
-            }
-            catch (Exception ex)
-            {
-                Logger.Error("导入整合包失败", ex);
-                ModpackStatus = "导入失败：" + ex.Message;
-            }
-            finally
-            {
-                IsImportingModpack = false;
-            }
-        }
-
-        /// <summary>刷新光影包列表命令</summary>
-        [RelayCommand]
-        private void RefreshShaderPacks()
-        {
-            try
-            {
-                var minecraftPath = _configService.Current.MinecraftPath;
-                if (string.IsNullOrWhiteSpace(minecraftPath))
-                {
-                    minecraftPath = System.IO.Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                        ".minecraft");
-                }
-
-                ShaderPacks.Clear();
-                var shaderDir = System.IO.Path.Combine(minecraftPath, "shaderpacks");
-
-                if (!System.IO.Directory.Exists(shaderDir))
-                {
-                    ShaderPackStatus = "光影包目录不存在：" + shaderDir;
-                    return;
-                }
-
-                var files = System.IO.Directory.GetFiles(shaderDir, "*.zip")
-                    .Concat(System.IO.Directory.GetFiles(shaderDir, "*.jar"));
-
-                foreach (var f in files)
-                {
-                    ShaderPacks.Add(System.IO.Path.GetFileName(f));
-                }
-
-                ShaderPackStatus = ShaderPacks.Count > 0
-                    ? $"共 {ShaderPacks.Count} 个光影包"
-                    : "未找到光影包。请先下载光影包放入 shaderpacks 目录。";
-
-                Logger.Info($"扫描到 {ShaderPacks.Count} 个光影包");
-            }
-            catch (Exception ex)
-            {
-                Logger.Error("扫描光影包失败", ex);
-                ShaderPackStatus = "扫描失败：" + ex.Message;
-            }
-        }
-
-        /// <summary>开始下载命令</summary>
-        [RelayCommand(CanExecute = nameof(CanStartDownload))]
-        private async Task StartDownloadAsync()
-        {
-            if (IsDownloading) return;
-
-            var versionId = VersionIdInput?.Trim();
-            if (string.IsNullOrEmpty(versionId))
-            {
-                HintMessage = "请输入版本 id（如 1.20.4）";
+                RefreshFavorites();
                 return;
             }
 
-            // 读取 .minecraft 路径
-            var minecraftPath = _configService.Current.MinecraftPath;
-            if (string.IsNullOrWhiteSpace(minecraftPath))
+            var query = SearchQuery?.Trim() ?? string.Empty;
+
+            // 游戏本体不依赖关键字也能列出全部版本
+            if (SelectedCategoryIndex != 0 && string.IsNullOrEmpty(query))
             {
-                minecraftPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    ".minecraft");
-            }
-            if (!Directory.Exists(minecraftPath))
-            {
-                try { Directory.CreateDirectory(minecraftPath); }
-                catch (Exception ex)
-                {
-                    HintMessage = $"无法创建 .minecraft 目录：{ex.Message}";
-                    return;
-                }
+                HintMessage = "请输入搜索关键字。";
+                return;
             }
 
-            // 重置状态
-            ClearFileList();
-            _cts = new CancellationTokenSource();
-            IsDownloading = true;
-            IsPaused = false;
-            CanStartDownload = false;
-            NotifyCommandsCanExecuteChanged();
-            OverallPercent = 0;
-            TotalFiles = 0;
-            CompletedFiles = 0;
-            FailedFiles = 0;
+            IsSearching = true;
+            SearchResults.Clear();
             HintMessage = null;
+            StatusText = "正在搜索...";
 
             try
             {
-                StatusText = "正在获取版本清单...";
-
-                // 1. 获取版本条目
-                var entry = await _manifestService.GetVersionAsync(versionId, _cts.Token);
-                if (entry == null)
+                switch (SelectedCategoryIndex)
                 {
-                    HintMessage = $"在版本清单中找不到版本：{versionId}";
-                    StatusText = "找不到版本";
+                    case 0: // 游戏本体
+                        await SearchGameVersionsAsync(query);
+                        break;
+                    case 1: // 整合包（游戏分类）
+                    case 3: // 整合包（资源分类）
+                        await SearchResourcesAsync(query, ResourceType.World, ResourceKind.Modpack);
+                        break;
+                    case 2: // 模组
+                        await SearchModsAsync(query);
+                        break;
+                    case 4: // 资源包
+                        await SearchResourcesAsync(query, ResourceType.ResourcePack, ResourceKind.ResourcePack);
+                        break;
+                    case 5: // 光影包
+                        await SearchResourcesAsync(query, ResourceType.ShaderPack, ResourceKind.ShaderPack);
+                        break;
+                    case 6: // 数据包（暂复用 ResourcePack 类型）
+                        await SearchResourcesAsync(query, ResourceType.ResourcePack, ResourceKind.Datapack);
+                        break;
+                    case 7: // 世界
+                        await SearchResourcesAsync(query, ResourceType.World, ResourceKind.World);
+                        break;
+                }
+
+                StatusText = SearchResults.Count > 0
+                    ? $"找到 {SearchResults.Count} 个结果"
+                    : "未找到结果";
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("搜索资源失败", ex);
+                StatusText = "搜索失败";
+                HintMessage = "搜索失败：" + ex.Message;
+            }
+            finally
+            {
+                IsSearching = false;
+            }
+        }
+
+        /// <summary>搜索游戏版本（从版本清单获取）</summary>
+        private async Task SearchGameVersionsAsync(string query)
+        {
+            var versions = await _manifestService.GetVersionsAsync();
+            var filtered = string.IsNullOrEmpty(query)
+                ? versions
+                : versions.Where(v => v.Id != null && v.Id.Contains(query, StringComparison.OrdinalIgnoreCase));
+
+            // 优先显示 release 类型
+            foreach (var entry in filtered
+                         .OrderByDescending(v => v.Type == "release")
+                         .ThenByDescending(v => v.ReleaseTime ?? string.Empty)
+                         .Take(100))
+            {
+                SearchResults.Add(new ResourceCard
+                {
+                    IconUrl = null,
+                    Name = entry.Id ?? "未知版本",
+                    Author = "Mojang",
+                    Description = $"类型：{entry.Type ?? "未知"}    发布时间：{entry.ReleaseTime ?? "未知"}",
+                    DownloadCountDisplay = "-",
+                    SourceDisplay = "Mojang 官方",
+                    Kind = ResourceKind.GameVersion,
+                    Original = entry,
+                    ProjectId = entry.Id ?? string.Empty,
+                    IsFavorite = IsFavorite(BuildFavoriteId(ResourceKind.GameVersion, entry.Id ?? string.Empty))
+                });
+            }
+        }
+
+        /// <summary>搜索模组（调用 IModDownloadService）</summary>
+        private async Task SearchModsAsync(string query)
+        {
+            var results = await _modDownloadService.SearchAsync(query, ModSource.All);
+            foreach (var r in results)
+            {
+                SearchResults.Add(ToCard(r, ResourceKind.Mod));
+            }
+        }
+
+        /// <summary>搜索资源（调用 IResourceService）</summary>
+        private async Task SearchResourcesAsync(string query, ResourceType type, ResourceKind kind)
+        {
+            var results = await _resourceService.SearchResourcesAsync(query, type, ModSource.All);
+            foreach (var r in results)
+            {
+                SearchResults.Add(ToCard(r, kind));
+            }
+        }
+
+        /// <summary>把 ModSearchResult 转换为统一卡片</summary>
+        private ResourceCard ToCard(ModSearchResult r, ResourceKind kind)
+        {
+            var favId = BuildFavoriteId(kind, r.ProjectId);
+            return new ResourceCard
+            {
+                IconUrl = r.LogoUrl,
+                Name = r.Name,
+                Author = string.IsNullOrEmpty(r.Author) ? "-" : r.Author,
+                Description = r.Description,
+                DownloadCountDisplay = r.DownloadCountDisplay,
+                SourceDisplay = r.SourceDisplay,
+                Kind = kind,
+                Original = r,
+                ProjectId = r.ProjectId,
+                IsFavorite = IsFavorite(favId)
+            };
+        }
+
+        // ====== 详情页导航 ======
+
+        /// <summary>详情页是否可见（覆盖整个内容区）</summary>
+        [ObservableProperty]
+        private bool _isDetailVisible;
+
+        /// <summary>显示资源详情命令：把卡片数据传给详情页 VM 并显示</summary>
+        [RelayCommand]
+        private void ShowDetail(ResourceCard? card)
+        {
+            if (card == null) return;
+            DetailVM.Initialize(card, _configService.Current.ResourceFileNameFormat);
+            IsDetailVisible = true;
+        }
+
+        /// <summary>返回列表命令：关闭详情页</summary>
+        [RelayCommand]
+        private void BackToList()
+        {
+            IsDetailVisible = false;
+        }
+
+        /// <summary>详情页 VM 触发"返回"事件时同步本 VM 状态</summary>
+        private void OnDetailBackRequested(object? sender, EventArgs e)
+        {
+            IsDetailVisible = false;
+        }
+
+        /// <summary>详情页 VM 触发"收藏状态变化"事件时刷新收藏夹</summary>
+        private void OnDetailFavoriteChanged(object? sender, EventArgs e)
+        {
+            // 同步当前列表中该资源的收藏状态
+            if (DetailVM.CurrentCard != null)
+            {
+                var favId = BuildFavoriteId(DetailVM.CurrentCard.Kind, DetailVM.CurrentCard.ProjectId);
+                var isFav = IsFavorite(favId);
+                foreach (var c in SearchResults)
+                {
+                    if (c.ProjectId == DetailVM.CurrentCard.ProjectId && c.Kind == DetailVM.CurrentCard.Kind)
+                    {
+                        c.IsFavorite = isFav;
+                    }
+                }
+            }
+        }
+
+        // ====== 收藏夹 ======
+
+        /// <summary>收藏的资源 id 集合（运行时内存缓存）</summary>
+        private readonly HashSet<string> _favoriteIds = new();
+
+        /// <summary>收藏夹中存储的资源完整信息（用于在收藏夹列表显示卡片）</summary>
+        private readonly List<ResourceCard> _favoriteCards = new();
+
+        /// <summary>构造收藏夹 id（用种类+项目id 区分不同类型但同 id 的资源）</summary>
+        private static string BuildFavoriteId(ResourceKind kind, string projectId)
+        {
+            return $"{kind}::{projectId}";
+        }
+
+        /// <summary>判断指定资源是否已收藏</summary>
+        private bool IsFavorite(string favId) => _favoriteIds.Contains(favId);
+
+        /// <summary>从 favorites.json 加载收藏列表</summary>
+        private void LoadFavorites()
+        {
+            try
+            {
+                if (!File.Exists(FavoritesFilePath))
                     return;
-                }
 
-                // 2. 下载版本 JSON
-                StatusText = $"正在下载版本 JSON：{versionId}...";
-                await _minecraftFileDownloader.DownloadVersionJsonAsync(entry, minecraftPath, _cts.Token);
+                var json = File.ReadAllText(FavoritesFilePath);
+                var list = JsonSerializer.Deserialize<List<ResourceCard>>(json);
+                if (list == null) return;
 
-                // 3. 解析版本 JSON
-                StatusText = "正在解析版本 JSON...";
-                var resolved = await Task.Run(() => _versionResolver.Resolve(minecraftPath, versionId), _cts.Token);
-                var versionInfo = resolved.Info;
-
-                // 4. 第一次下载：下载 client.jar、libraries、assetIndex、logging
-                //    （assets objects 暂不下载，因为 assetIndex 可能还没下载）
-                StatusText = $"正在下载版本文件（第一阶段：client.jar / libraries / assetIndex）...";
-                var result1 = await _minecraftFileDownloader.DownloadVersionAsync(versionInfo, minecraftPath, _cts.Token);
-
-                // 5. 第二次下载：这次 assetIndex 已存在，会读取并下载所有 assets objects
-                //    （已存在且校验通过的文件会自动跳过）
-                StatusText = $"正在下载资源文件（第二阶段：assets objects）...";
-                var result2 = await _minecraftFileDownloader.DownloadVersionAsync(versionInfo, minecraftPath, _cts.Token);
-
-                // 汇总结果
-                var totalSuccess = result1.SuccessFiles + result2.SuccessFiles;
-                var totalFailed = result1.FailedFiles + result2.FailedFiles;
-                var canceled = result1.IsCanceled || result2.IsCanceled;
-
-                if (canceled)
+                _favoriteCards.Clear();
+                _favoriteIds.Clear();
+                foreach (var card in list)
                 {
-                    StatusText = "下载已取消";
-                    HintMessage = "下载被用户取消，可点击\"开始下载\"继续。";
+                    _favoriteCards.Add(card);
+                    _favoriteIds.Add(BuildFavoriteId(card.Kind, card.ProjectId));
                 }
-                else if (totalFailed == 0)
-                {
-                    StatusText = $"下载完成！成功 {totalSuccess} 个文件";
-                    Logger.Info($"版本 {versionId} 全部下载完成，共 {totalSuccess} 个文件");
-                }
-                else
-                {
-                    StatusText = $"下载结束（成功 {totalSuccess}，失败 {totalFailed}）";
-                    HintMessage = $"有 {totalFailed} 个文件下载失败，请查看日志或重试。";
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                StatusText = "下载已取消";
-                HintMessage = "下载被用户取消。";
             }
             catch (Exception ex)
             {
-                Logger.Error("下载版本失败", ex);
-                StatusText = "下载失败：" + ex.Message;
-                HintMessage = "下载失败：" + ex.Message;
-            }
-            finally
-            {
-                IsDownloading = false;
-                IsPaused = false;
-                CanStartDownload = true;
-                NotifyCommandsCanExecuteChanged();
-                _cts?.Dispose();
-                _cts = null;
+                Logger.Warn($"加载收藏夹失败：{ex.Message}");
             }
         }
 
-        /// <summary>暂停下载命令</summary>
-        [RelayCommand(CanExecute = nameof(CanPause))]
-        private void Pause()
+        /// <summary>保存收藏列表到 favorites.json</summary>
+        private void SaveFavorites()
         {
-            if (!IsDownloading || IsPaused) return;
-            _minecraftFileDownloader.Pause();
-            IsPaused = true;
-            StatusText = "已暂停（等待当前文件下载完成）";
-            NotifyCommandsCanExecuteChanged();
-        }
-
-        /// <summary>继续下载命令</summary>
-        [RelayCommand(CanExecute = nameof(CanResume))]
-        private void Resume()
-        {
-            if (!IsDownloading || !IsPaused) return;
-            _minecraftFileDownloader.Resume();
-            IsPaused = false;
-            StatusText = "继续下载中...";
-            NotifyCommandsCanExecuteChanged();
-        }
-
-        /// <summary>取消下载命令</summary>
-        [RelayCommand(CanExecute = nameof(CanCancel))]
-        private void Cancel()
-        {
-            if (!IsDownloading) return;
-            _cts?.Cancel();
-            StatusText = "正在取消下载...";
-            Logger.Info("用户请求取消下载");
-        }
-
-        /// <summary>刷新版本清单命令</summary>
-        [RelayCommand(CanExecute = nameof(CanRefreshManifest))]
-        private async Task RefreshManifestAsync()
-        {
-            if (IsLoadingManifest) return;
-            IsLoadingManifest = true;
             try
             {
-                StatusText = "正在刷新版本清单...";
-                await _manifestService.FetchAsync(forceUpdate: true);
-                StatusText = "版本清单已刷新";
-                HintMessage = null;
+                var json = JsonSerializer.Serialize(_favoriteCards,
+                    new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(FavoritesFilePath, json);
             }
             catch (Exception ex)
             {
-                Logger.Error("刷新版本清单失败", ex);
-                HintMessage = "刷新版本清单失败：" + ex.Message;
-                StatusText = "刷新版本清单失败";
-            }
-            finally
-            {
-                IsLoadingManifest = false;
+                Logger.Warn($"保存收藏夹失败：{ex.Message}");
             }
         }
 
-        private bool CanPause() => IsDownloading && !IsPaused;
-        private bool CanResume() => IsDownloading && IsPaused;
-        private bool CanCancel() => IsDownloading;
-        private bool CanRefreshManifest() => !IsLoadingManifest && !IsDownloading;
-
-        /// <summary>刷新所有命令的可执行状态</summary>
-        private void NotifyCommandsCanExecuteChanged()
+        /// <summary>添加收藏</summary>
+        public void AddFavorite(ResourceCard card)
         {
-            PauseCommand.NotifyCanExecuteChanged();
-            ResumeCommand.NotifyCanExecuteChanged();
-            CancelCommand.NotifyCanExecuteChanged();
-            StartDownloadCommand.NotifyCanExecuteChanged();
-            RefreshManifestCommand.NotifyCanExecuteChanged();
-        }
-
-        /// <summary>整体进度回调</summary>
-        private void OnProgressChanged(object? sender, BatchDownloadProgressEventArgs e)
-        {
-            Application.Current?.Dispatcher.Invoke(() =>
+            var favId = BuildFavoriteId(card.Kind, card.ProjectId);
+            if (_favoriteIds.Add(favId))
             {
-                TotalFiles = e.TotalFiles;
-                CompletedFiles = e.CompletedFiles;
-                FailedFiles = e.FailedFiles;
-                OverallPercent = e.Percent;
-                TotalBytesDisplay = FormatBytes(e.TotalBytes);
-                DownloadedBytesDisplay = FormatBytes(e.DownloadedBytes);
-                SpeedDisplay = e.BytesPerSecond > 0
-                    ? FormatBytes((long)e.BytesPerSecond) + "/s"
-                    : "-";
-            });
-        }
-
-        /// <summary>单个任务的实时进度回调</summary>
-        private void OnTaskProgressChanged(object? sender, DownloadTaskProgressEventArgs e)
-        {
-            Application.Current?.Dispatcher.Invoke(() =>
-            {
-                var item = GetOrCreateFileItem(e.Task);
-                item.Percent = e.Percent;
-                item.BytesPerSecond = e.BytesPerSecond;
-                item.DownloadedBytes = e.DownloadedBytes;
-                item.TotalBytes = e.TotalBytes;
-                item.IsCompleted = false;
-                item.IsFailed = false;
-                item.SpeedDisplay = e.BytesPerSecond > 0
-                    ? FormatBytes((long)e.BytesPerSecond) + "/s"
-                    : "-";
-            });
-        }
-
-        /// <summary>单个任务完成回调</summary>
-        private void OnTaskCompleted(object? sender, DownloadTaskCompletedEventArgs e)
-        {
-            Application.Current?.Dispatcher.Invoke(() =>
-            {
-                var item = GetOrCreateFileItem(e.Task);
-                item.IsCompleted = e.Success;
-                item.IsFailed = !e.Success;
-                item.Percent = e.Success ? 100 : item.Percent;
-                item.SpeedDisplay = e.Success ? "完成" : "失败";
-                item.ErrorMessage = e.Error?.Message;
-
-                // 列表过长时移除最早完成的项
-                TrimFileList();
-            });
-        }
-
-        /// <summary>获取或创建文件项（线程安全，但实际在 UI 线程调用）</summary>
-        private DownloadFileItem GetOrCreateFileItem(DownloadTask task)
-        {
-            var key = task.TargetPath;
-            lock (_fileListLock)
-            {
-                if (_fileItemMap.TryGetValue(key, out var existing))
-                    return existing;
-
-                var item = new DownloadFileItem
-                {
-                    FileName = string.IsNullOrEmpty(task.DisplayName)
-                        ? Path.GetFileName(task.TargetPath)
-                        : task.DisplayName,
-                    Category = task.Category,
-                    TotalBytes = task.Size
-                };
-                _fileItemMap[key] = item;
-                ActiveFiles.Add(item);
-                return item;
+                _favoriteCards.Add(card);
+                SaveFavorites();
             }
         }
 
-        /// <summary>清空文件列表</summary>
-        private void ClearFileList()
+        /// <summary>取消收藏</summary>
+        public void RemoveFavorite(ResourceCard card)
         {
-            lock (_fileListLock)
+            var favId = BuildFavoriteId(card.Kind, card.ProjectId);
+            if (_favoriteIds.Remove(favId))
             {
-                _fileItemMap.Clear();
-                ActiveFiles.Clear();
+                _favoriteCards.RemoveAll(c =>
+                    c.Kind == card.Kind && c.ProjectId == card.ProjectId);
+                SaveFavorites();
             }
         }
 
-        /// <summary>当文件列表过长时移除最早完成的项</summary>
-        private void TrimFileList()
+        /// <summary>刷新收藏夹列表显示</summary>
+        private void RefreshFavorites()
         {
-            lock (_fileListLock)
+            SearchResults.Clear();
+            foreach (var c in _favoriteCards)
             {
-                while (ActiveFiles.Count > MaxActiveFiles)
-                {
-                    // 找到第一个已完成的项移除
-                    var toRemove = ActiveFiles.FirstOrDefault(f => f.IsCompleted || f.IsFailed);
-                    if (toRemove == null) break;
-                    ActiveFiles.Remove(toRemove);
-                    _fileItemMap.Remove(toRemove.FileName); // 用 FileName 近似移除（不影响功能）
-                }
+                c.IsFavorite = true;
+                SearchResults.Add(c);
+            }
+            StatusText = SearchResults.Count > 0
+                ? $"收藏夹中有 {SearchResults.Count} 个资源"
+                : "收藏夹为空";
+        }
+
+        // ====== 下载设置 ======
+
+        /// <summary>下载源（双向绑定到 AppConfig.DownloadSource）</summary>
+        public DownloadSource DownloadSource
+        {
+            get => _configService.Current.DownloadSource;
+            set
+            {
+                if (_configService.Current.DownloadSource == value) return;
+                _configService.Current.DownloadSource = value;
+                _configService.Save();
+                UpdateDownloadSourceDisplay();
+                OnPropertyChanged();
             }
         }
+
+        /// <summary>下载线程数（1~64，双向绑定到 AppConfig.DownloadThreads）</summary>
+        public int DownloadThreadCount
+        {
+            get => _configService.Current.DownloadThreads;
+            set
+            {
+                var clamped = Math.Clamp(value, 1, 64);
+                if (_configService.Current.DownloadThreads == clamped) return;
+                _configService.Current.DownloadThreads = clamped;
+                _configService.Save();
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>资源文件名格式（双向绑定到 AppConfig.ResourceFileNameFormat）</summary>
+        public string FileNameFormat
+        {
+            get => _configService.Current.ResourceFileNameFormat;
+            set
+            {
+                if (_configService.Current.ResourceFileNameFormat == value) return;
+                _configService.Current.ResourceFileNameFormat = value;
+                _configService.Save();
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>当前下载源显示文字</summary>
+        [ObservableProperty]
+        private string _downloadSourceDisplay = "BMCLAPI 镜像";
+
+        /// <summary>状态文字（搜索状态 / 下载状态）</summary>
+        [ObservableProperty]
+        private string _statusText = "请输入关键字搜索资源。";
 
         /// <summary>更新下载源显示文字</summary>
         private void UpdateDownloadSourceDisplay()
@@ -557,91 +514,212 @@ namespace YCL.ViewModels
             };
         }
 
-        /// <summary>把字节数格式化为人类可读字符串（如 "1.2 GB"）</summary>
-        private static string FormatBytes(long bytes)
+        /// <summary>
+        /// 根据当前文件名格式模板，把"名称"和"文件标识"格式化为最终文件名。
+        /// 模板中 {name}=名称，{file}=文件标识；如 "{name}-{file}" → Create-create-1.21.1-6.0.4
+        /// </summary>
+        public string FormatFileName(string name, string fileId)
         {
-            if (bytes < 0) return "-";
-            if (bytes < 1024) return bytes + " B";
-            if (bytes < 1024 * 1024) return (bytes / 1024.0).ToString("F1") + " KB";
-            if (bytes < 1024L * 1024 * 1024) return (bytes / (1024.0 * 1024)).ToString("F1") + " MB";
-            return (bytes / (1024.0 * 1024 * 1024)).ToString("F2") + " GB";
+            if (string.IsNullOrEmpty(name)) name = string.Empty;
+            if (string.IsNullOrEmpty(fileId)) fileId = string.Empty;
+
+            var template = _configService.Current.ResourceFileNameFormat;
+            if (string.IsNullOrEmpty(template)) template = "{name}-{file}";
+            return template.Replace("{name}", name).Replace("{file}", fileId);
+        }
+
+        /// <summary>打开下载设置对话框命令</summary>
+        [RelayCommand]
+        private async Task OpenDownloadSettingsAsync()
+        {
+            // 下载源 ComboBox
+            var sourceCombo = new ComboBox
+            {
+                MinWidth = 240,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            sourceCombo.Items.Add(new ComboBoxItem { Content = "官方源（Mojang）", Tag = DownloadSource.Official });
+            sourceCombo.Items.Add(new ComboBoxItem { Content = "BMCLAPI 镜像", Tag = DownloadSource.BMCLAPI });
+            sourceCombo.Items.Add(new ComboBoxItem { Content = "MCBBS 镜像", Tag = DownloadSource.MCBBS });
+            foreach (ComboBoxItem item in sourceCombo.Items)
+            {
+                if (item.Tag is DownloadSource ds && ds == DownloadSource)
+                {
+                    sourceCombo.SelectedItem = item;
+                    break;
+                }
+            }
+
+            // 文件名格式 ComboBox
+            var formatCombo = new ComboBox
+            {
+                MinWidth = 280,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 4, 0, 0)
+            };
+            formatCombo.Items.Add(new ComboBoxItem { Content = "{name}-{file}  →  名称-文件名", Tag = (object)"{name}-{file}" });
+            formatCombo.Items.Add(new ComboBoxItem { Content = "[{name}{file}  →  [名称文件名", Tag = (object)"[{name}{file}" });
+            formatCombo.Items.Add(new ComboBoxItem { Content = "{name}{file}  →  名称文件名", Tag = (object)"{name}{file}" });
+            formatCombo.Items.Add(new ComboBoxItem { Content = "{file}-{name}  →  文件名-名称", Tag = (object)"{file}-{name}" });
+            formatCombo.Items.Add(new ComboBoxItem { Content = "{file}  →  仅文件名", Tag = (object)"{file}" });
+            foreach (ComboBoxItem item in formatCombo.Items)
+            {
+                if (item.Tag is string fmt && fmt == FileNameFormat)
+                {
+                    formatCombo.SelectedItem = item;
+                    break;
+                }
+            }
+
+            // 下载线程数 Slider
+            var threadSlider = new Slider
+            {
+                Minimum = 1,
+                Maximum = 64,
+                TickFrequency = 1,
+                IsSnapToTickEnabled = true,
+                Value = DownloadThreadCount,
+                MinWidth = 320,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 4, 0, 0)
+            };
+
+            var threadValueText = new TextBlock
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(8, 0, 0, 0)
+            };
+            threadValueText.SetBinding(System.Windows.Controls.TextBlock.TextProperty, new System.Windows.Data.Binding
+            {
+                Source = threadSlider,
+                Path = new System.Windows.PropertyPath(nameof(Slider.Value)),
+                StringFormat = "{0:0} 线程"
+            });
+
+            var threadRow = new StackPanel { Orientation = Orientation.Horizontal };
+            threadRow.Children.Add(threadSlider);
+            threadRow.Children.Add(threadValueText);
+
+            var dialog = new ContentDialog
+            {
+                Title = "下载设置",
+                PrimaryButtonText = "保存",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Primary,
+                Content = new StackPanel
+                {
+                    MinWidth = 360,
+                    Children =
+                    {
+                        new System.Windows.Controls.TextBlock { Text = "下载源", FontWeight = FontWeights.SemiBold },
+                        sourceCombo,
+                        new System.Windows.Controls.TextBlock { Text = "文件名格式", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 16, 0, 0) },
+                        formatCombo,
+                        new System.Windows.Controls.TextBlock { Text = "下载线程数", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 16, 0, 0) },
+                        threadRow,
+                        new System.Windows.Controls.TextBlock
+                        {
+                            Text = "提示：BMCLAPI 为国内镜像源，下载速度更快。线程数越大下载越快，但占用系统资源越多。",
+                            Opacity = 0.6,
+                            FontSize = 11,
+                            Margin = new Thickness(0, 12, 0, 0),
+                            TextWrapping = TextWrapping.Wrap
+                        }
+                    }
+                }
+            };
+
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                if (sourceCombo.SelectedItem is ComboBoxItem sourceItem && sourceItem.Tag is DownloadSource newSource)
+                    DownloadSource = newSource;
+                if (formatCombo.SelectedItem is ComboBoxItem formatItem && formatItem.Tag is string newFormat)
+                    FileNameFormat = newFormat;
+                DownloadThreadCount = (int)Math.Round(threadSlider.Value);
+
+                HintMessage = "下载设置已保存。";
+            }
         }
     }
 
     /// <summary>
-    /// 下载文件列表中的单项：表示一个正在下载或已完成的文件。
-    /// 用于 <see cref="DownloadPageViewModel.ActiveFiles"/> 列表显示。
+    /// 资源种类枚举：决定详情页"立即获取"按钮的行为。
     /// </summary>
-    public class DownloadFileItem : ObservableObject
+    public enum ResourceKind
     {
-        /// <summary>文件名（用于显示）</summary>
-        public string FileName { get; set; } = string.Empty;
+        Unknown = 0,
+        GameVersion,
+        Modpack,
+        Mod,
+        ResourcePack,
+        ShaderPack,
+        Datapack,
+        World
+    }
 
-        /// <summary>任务分类（client / libraries / natives / assets / assetIndex / logging）</summary>
-        public string Category { get; set; } = string.Empty;
+    /// <summary>
+    /// 资源卡片：搜索结果与收藏夹的统一展示模型。
+    /// 包装了原始数据对象（ModSearchResult 或 VersionManifestEntry），
+    /// 让 UI 不需要关心资源类型差异。
+    /// </summary>
+    public class ResourceCard : ObservableObject
+    {
+        /// <summary>图标 URL（无图标时为 null）</summary>
+        public string? IconUrl { get; set; }
 
-        private double _percent = -1;
-        /// <summary>进度百分比（0~100，-1 表示不确定）</summary>
-        public double Percent
+        /// <summary>资源名</summary>
+        public string Name { get; set; } = string.Empty;
+
+        /// <summary>作者</summary>
+        public string Author { get; set; } = string.Empty;
+
+        /// <summary>简短描述</summary>
+        public string Description { get; set; } = string.Empty;
+
+        /// <summary>下载量显示文字（如 "1.2K"）</summary>
+        public string DownloadCountDisplay { get; set; } = "-";
+
+        /// <summary>来源显示文字（如 "Modrinth" / "Mojang 官方"）</summary>
+        public string SourceDisplay { get; set; } = string.Empty;
+
+        /// <summary>资源种类</summary>
+        public ResourceKind Kind { get; set; } = ResourceKind.Unknown;
+
+        /// <summary>原始数据对象（ModSearchResult 或 VersionManifestEntry）</summary>
+        public object? Original { get; set; }
+
+        /// <summary>项目 id（用于收藏夹去重）</summary>
+        public string ProjectId { get; set; } = string.Empty;
+
+        private bool _isFavorite;
+        /// <summary>是否已收藏（控制卡片上"收藏"按钮显示状态）</summary>
+        public bool IsFavorite
         {
-            get => _percent;
-            set => SetProperty(ref _percent, value);
+            get => _isFavorite;
+            set => SetProperty(ref _isFavorite, value);
         }
+    }
 
-        private double _bytesPerSecond;
-        /// <summary>当前下载速度（字节/秒）</summary>
-        public double BytesPerSecond
-        {
-            get => _bytesPerSecond;
-            set => SetProperty(ref _bytesPerSecond, value);
-        }
+    /// <summary>
+    /// 左侧分类列表项：图标 + 名称 + 所属分组（"游戏"/"资源"/"收藏"）。
+    /// 用于 DownloadPage.xaml 左侧 ListBox 按 Group 分组显示分类。
+    /// </summary>
+    public class CategoryItem
+    {
+        /// <summary>图标（emoji 字符）</summary>
+        public string Icon { get; set; }
 
-        private long _downloadedBytes;
-        /// <summary>已下载字节数</summary>
-        public long DownloadedBytes
-        {
-            get => _downloadedBytes;
-            set => SetProperty(ref _downloadedBytes, value);
-        }
+        /// <summary>分类显示名</summary>
+        public string Name { get; set; }
 
-        private long _totalBytes = -1;
-        /// <summary>文件总字节数（-1 表示未知）</summary>
-        public long TotalBytes
-        {
-            get => _totalBytes;
-            set => SetProperty(ref _totalBytes, value);
-        }
+        /// <summary>所属分组（用于 GroupStyle 按组分块显示）</summary>
+        public string Group { get; set; }
 
-        private bool _isCompleted;
-        /// <summary>是否已完成（成功）</summary>
-        public bool IsCompleted
+        public CategoryItem(string icon, string name, string group)
         {
-            get => _isCompleted;
-            set => SetProperty(ref _isCompleted, value);
-        }
-
-        private bool _isFailed;
-        /// <summary>是否失败</summary>
-        public bool IsFailed
-        {
-            get => _isFailed;
-            set => SetProperty(ref _isFailed, value);
-        }
-
-        private string _speedDisplay = "-";
-        /// <summary>速度显示文字（如 "2.5 MB/s" 或 "完成"）</summary>
-        public string SpeedDisplay
-        {
-            get => _speedDisplay;
-            set => SetProperty(ref _speedDisplay, value);
-        }
-
-        private string? _errorMessage;
-        /// <summary>失败时的错误信息</summary>
-        public string? ErrorMessage
-        {
-            get => _errorMessage;
-            set => SetProperty(ref _errorMessage, value);
+            Icon = icon;
+            Name = name;
+            Group = group;
         }
     }
 }

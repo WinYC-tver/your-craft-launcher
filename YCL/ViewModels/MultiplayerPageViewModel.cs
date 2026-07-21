@@ -8,7 +8,9 @@ using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using YCL.Core.Accounts;
 using YCL.Core.Download;
+using YCL.Core.Launch;
 using YCL.Core.Utils;
 using YCL.Core.Versions;
 using YCL.Models.Versions;
@@ -22,18 +24,28 @@ namespace YCL.ViewModels
     /// 主要功能：
     /// 1. 提供项目主页跳转
     /// 2. 从 GitHub Release 下载 Terracotta jar 客户端
-    /// 3. 选择已安装版本 + 填写服务器地址，触发联机启动（占位实现）
+    /// 3. 创建房间（占位：弹 MessageBox 提示）
+    /// 4. 加入房间 / 联机启动：将 Terracotta jar 复制到 mods 目录，调用 IGameLauncher 启动游戏
+    /// 5. 服务器列表：保存常用服务器地址到 %AppData%\YCL\servers.txt
+    /// 6. 联机帮助：在 UI 上展示 Terracotta 联机步骤说明
     /// </summary>
     public partial class MultiplayerPageViewModel : ViewModelBase
     {
         private readonly IVersionManager _versionManager;
         private readonly IConfigService _configService;
         private readonly MultiThreadDownloader _downloader;
+        private readonly IGameLauncher _gameLauncher;
+        private readonly IAccountManager _accountManager;
 
         /// <summary>Terracotta jar 存放路径：%AppData%\YCL\terracotta\terracotta.jar</summary>
         private static readonly string TerracottaJarPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "YCL", "terracotta", "terracotta.jar");
+
+        /// <summary>保存的常用服务器列表文件：%AppData%\YCL\servers.txt</summary>
+        private static readonly string SavedServersPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "YCL", "servers.txt");
 
         /// <summary>
         /// 共享 HttpClient（用于 GitHub API + jar 下载）。
@@ -48,11 +60,15 @@ namespace YCL.ViewModels
         public MultiplayerPageViewModel(
             IVersionManager versionManager,
             IConfigService configService,
-            MultiThreadDownloader downloader)
+            MultiThreadDownloader downloader,
+            IGameLauncher gameLauncher,
+            IAccountManager accountManager)
         {
             _versionManager = versionManager;
             _configService = configService;
             _downloader = downloader;
+            _gameLauncher = gameLauncher;
+            _accountManager = accountManager;
 
             // 构造函数里检查 Terracotta 是否已下载
             if (File.Exists(TerracottaJarPath))
@@ -60,6 +76,9 @@ namespace YCL.ViewModels
                 IsTerracottaReady = true;
                 DownloadStatus = "Terracotta 已就绪";
             }
+
+            // 加载已保存的服务器列表
+            LoadSavedServers();
 
             // 立即异步加载已安装版本列表
             _ = LoadVersionsAsync();
@@ -91,9 +110,27 @@ namespace YCL.ViewModels
         [ObservableProperty]
         private bool _isTerracottaReady;
 
-        /// <summary>联机服务器地址</summary>
+        /// <summary>联机服务器地址（加入房间用）</summary>
         [ObservableProperty]
         private string _serverAddress = "";
+
+        /// <summary>房间名称（创建房间用）</summary>
+        [ObservableProperty]
+        private string _roomName = "";
+
+        /// <summary>
+        /// 已保存的常用服务器地址列表（点击可快速填入 ServerAddress）。
+        /// 持久化到 %AppData%\YCL\servers.txt，每行一个地址。
+        /// </summary>
+        public ObservableCollection<string> SavedServers { get; } = new();
+
+        /// <summary>是否正在联机启动中（用于禁用按钮 + 显示状态）</summary>
+        [ObservableProperty]
+        private bool _isLaunching;
+
+        /// <summary>联机启动状态文字（显示在加入房间卡片下方）</summary>
+        [ObservableProperty]
+        private string _launchStatus = "";
 
         // ===== 命令 =====
 
@@ -278,30 +315,262 @@ namespace YCL.ViewModels
             DownloadProgress = 100;
         }
 
-        /// <summary>启动联机命令（占位实现：弹 MessageBox 提示）</summary>
+        /// <summary>创建房间命令：弹 MessageBox 提示功能开发中</summary>
         [RelayCommand]
-        private void LaunchMultiplayer()
+        private void CreateRoom()
         {
-            if (!IsTerracottaReady)
+            if (string.IsNullOrWhiteSpace(RoomName))
             {
-                MessageBox.Show("请先下载 Terracotta 客户端。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-            if (SelectedVersion == null)
-            {
-                MessageBox.Show("请先选择一个 Minecraft 版本。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("请先填写房间名称。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            var addr = string.IsNullOrWhiteSpace(ServerAddress) ? "（未填写）" : ServerAddress;
+            // 简化实现：弹 MessageBox 提示
             MessageBox.Show(
-                "联机启动功能开发中，请先用 Terracotta 客户端配合使用。\n\n" +
-                "选择版本：" + SelectedVersion.DisplayName + "\n" +
-                "服务器地址：" + addr + "\n\n" +
+                "房间创建功能开发中，请使用 Terracotta 客户端创建房间。\n\n" +
+                "房间名称：" + RoomName + "\n" +
                 "Terracotta jar 路径：\n" + TerracottaJarPath,
-                "联机启动",
+                "创建房间",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
+        }
+
+        /// <summary>加入房间命令：保存服务器地址 + 启动联机（与 LaunchMultiplayer 等价）</summary>
+        [RelayCommand]
+        private async Task JoinRoomAsync()
+        {
+            await LaunchMultiplayerAsync();
+        }
+
+        /// <summary>
+        /// 真正的联机启动命令：
+        /// 1. 检查 Terracotta 是否已就绪
+        /// 2. 检查是否选中版本
+        /// 3. 检查服务器地址非空
+        /// 4. 把 Terracotta jar 复制到选中版本的 mods 目录（Forge/Fabric 自动加载）
+        /// 5. 同步配置到 IGameLauncher 并启动游戏
+        /// 启动后显示"联机启动中..."状态，失败时显示错误信息。
+        /// </summary>
+        [RelayCommand]
+        private async Task LaunchMultiplayerAsync()
+        {
+            // 防止重复点击
+            if (IsLaunching) return;
+
+            // 检查 Terracotta jar 是否已下载
+            if (!IsTerracottaReady)
+            {
+                LaunchStatus = "请先下载 Terracotta 客户端。";
+                MessageBox.Show(LaunchStatus, "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // 检查是否选择了游戏版本
+            if (SelectedVersion == null)
+            {
+                LaunchStatus = "请先选择一个 Minecraft 版本。";
+                MessageBox.Show(LaunchStatus, "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // 检查是否填写了服务器地址
+            if (string.IsNullOrWhiteSpace(ServerAddress))
+            {
+                LaunchStatus = "请填写服务器地址。";
+                MessageBox.Show(LaunchStatus, "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // 获取当前账户（启动游戏需要）
+            var account = _accountManager.GetCurrentAccount();
+            if (account == null)
+            {
+                LaunchStatus = "请先到账户页面添加并选择一个账户，再启动联机。";
+                MessageBox.Show(LaunchStatus, "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            IsLaunching = true;
+            LaunchStatus = "联机启动中...";
+
+            try
+            {
+                // 获取游戏目录（考虑版本隔离），把 Terracotta jar 复制到 mods 目录
+                var gameDir = _versionManager.GetGameDirectory(SelectedVersion.Id);
+                var modsDir = Path.Combine(gameDir, "mods");
+
+                Directory.CreateDirectory(modsDir);
+                var targetJarPath = Path.Combine(modsDir, "terracotta.jar");
+                File.Copy(TerracottaJarPath, targetJarPath, overwrite: true);
+                Logger.Info($"Terracotta jar 已复制到：{targetJarPath}");
+
+                // 读取配置（Java 路径等）
+                var config = _configService.Current;
+                var javaPath = config.JavaPath;
+                if (string.IsNullOrWhiteSpace(javaPath))
+                {
+                    LaunchStatus = "未配置 Java 路径，请到设置页填写 JavaPath。";
+                    MessageBox.Show(
+                        LaunchStatus + "\n\n如果你还没装 Java，可以从 https://adoptium.net 下载。",
+                        "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // 同步配置到启动器（IGameLauncher 不支持额外 mod 参数，所以采用 mods 目录复制方案）
+                _gameLauncher.EnableVersionIsolation = config.EnableVersionIsolation;
+                _gameLauncher.WindowWidth = config.WindowWidth;
+                _gameLauncher.WindowHeight = config.WindowHeight;
+                _gameLauncher.FullscreenOnLaunch = config.FullscreenOnLaunch;
+                _gameLauncher.ExtraJvmArgs = config.ExtraJvmArgs ?? string.Empty;
+                _gameLauncher.CleanBeforeLaunch = config.CleanBeforeLaunch;
+
+                // 获取 .minecraft 路径
+                var minecraftPath = config.MinecraftPath;
+                if (string.IsNullOrWhiteSpace(minecraftPath))
+                {
+                    minecraftPath = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                        ".minecraft");
+                }
+
+                // 调用 IGameLauncher 启动游戏
+                LaunchStatus = "正在调用启动器...";
+                var success = await _gameLauncher.LaunchAsync(
+                    minecraftPath,
+                    SelectedVersion.Id,
+                    account,
+                    javaPath,
+                    config.MaxMemory,
+                    config.MinMemory);
+
+                if (success)
+                {
+                    Logger.Info($"联机启动成功：版本 {SelectedVersion.Id}，服务器 {ServerAddress}");
+                    LaunchStatus = $"联机已启动（版本 {SelectedVersion.Id}，服务器 {ServerAddress}）。\n进入游戏后请用多人游戏界面连接服务器。";
+                    MessageBox.Show(
+                        "联机游戏已启动！\n\n" +
+                        "Terracotta jar 已复制到 mods 目录，Minecraft 启动后会自动加载。\n" +
+                        "进入游戏后，使用 Terracotta 提供的多人游戏界面输入服务器地址连接。\n\n" +
+                        "服务器地址：" + ServerAddress,
+                        "联机启动成功",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+                else
+                {
+                    LaunchStatus = "联机启动失败，请查看启动器日志。";
+                    MessageBox.Show(
+                        LaunchStatus + "\n\n你可以手动启动 Minecraft，Terracotta jar 已在 mods 目录中。",
+                        "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("联机启动异常", ex);
+                LaunchStatus = "联机启动异常：" + ex.Message;
+                MessageBox.Show(
+                    LaunchStatus + "\n\n你可以手动启动 Minecraft，Terracotta jar 已在 mods 目录中。",
+                    "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally
+            {
+                IsLaunching = false;
+            }
+        }
+
+        /// <summary>
+        /// 保存当前 ServerAddress 到常用服务器列表。
+        /// 同时写入 %AppData%\YCL\servers.txt（每行一个地址）和 SavedServers 集合。
+        /// </summary>
+        [RelayCommand]
+        private void SaveServer()
+        {
+            var addr = ServerAddress?.Trim();
+            if (string.IsNullOrEmpty(addr))
+            {
+                MessageBox.Show("请先填写服务器地址。", "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // 去重：如果列表里已有该地址，先移除旧条目
+            if (SavedServers.Contains(addr))
+                SavedServers.Remove(addr);
+
+            // 新地址加到最前面（最近使用的优先）
+            SavedServers.Insert(0, addr);
+
+            // 持久化到文件
+            try
+            {
+                var dir = Path.GetDirectoryName(SavedServersPath);
+                if (!string.IsNullOrEmpty(dir))
+                    Directory.CreateDirectory(dir);
+                File.WriteAllLines(SavedServersPath, SavedServers);
+                Logger.Info($"已保存服务器地址：{addr}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("保存服务器列表失败", ex);
+                MessageBox.Show("保存服务器列表失败：" + ex.Message,
+                    "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        /// <summary>
+        /// 点击已保存的服务器条目：将其填入 ServerAddress 输入框。
+        /// </summary>
+        [RelayCommand]
+        private void SelectServer(string? server)
+        {
+            if (string.IsNullOrEmpty(server)) return;
+            ServerAddress = server;
+        }
+
+        /// <summary>
+        /// 删除一个已保存的服务器条目（右键删除 / 删除按钮）。
+        /// </summary>
+        [RelayCommand]
+        private void RemoveServer(string? server)
+        {
+            if (string.IsNullOrEmpty(server)) return;
+            if (!SavedServers.Contains(server)) return;
+            SavedServers.Remove(server);
+            try
+            {
+                File.WriteAllLines(SavedServersPath, SavedServers);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("更新服务器列表文件失败", ex);
+            }
+        }
+
+        /// <summary>
+        /// 从 %AppData%\YCL\servers.txt 加载已保存的服务器列表。
+        /// 文件不存在时静默跳过（首次使用）。
+        /// </summary>
+        private void LoadSavedServers()
+        {
+            try
+            {
+                if (!File.Exists(SavedServersPath)) return;
+                SavedServers.Clear();
+                foreach (var line in File.ReadAllLines(SavedServersPath))
+                {
+                    var s = line.Trim();
+                    if (!string.IsNullOrEmpty(s))
+                        SavedServers.Add(s);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn("加载服务器列表失败：" + ex.Message);
+            }
         }
     }
 }

@@ -4,6 +4,7 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
+      xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
       mc:Ignorable="d"
       d:DesignHeight="600" d:DesignWidth="900">
     <UserControl.Resources>
@@ -44,6 +45,78 @@
                 <!-- 加载中时也折叠 -->
                 <DataTrigger Binding="{Binding IsLoading}" Value="True">
                     <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 主页 URL 卡片：HasHomepage=true 且 IsHomepageUrl=true 时显示 -->
+        <Style x:Key="HomepageUrlCardStyle" TargetType="Border">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding HasHomepage}" Value="True"/>
+                        <Condition Binding="{Binding IsHomepageUrl}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 主页预设提示卡：HasHomepage=true 且 IsHomepagePreset=true 时显示 -->
+        <Style x:Key="HomepagePresetCardStyle" TargetType="Border">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding HasHomepage}" Value="True"/>
+                        <Condition Binding="{Binding IsHomepagePreset}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 主页本地文件卡：HasHomepage=true 且 IsHomepageLocal=true 时显示 -->
+        <Style x:Key="HomepageLocalCardStyle" TargetType="Border">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding HasHomepage}" Value="True"/>
+                        <Condition Binding="{Binding IsHomepageLocal}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 本地图片显示：IsLocalImage=true 时显示 -->
+        <Style x:Key="LocalImageStyle" TargetType="Image">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsLocalImage}" Value="True">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 本地 HTML 显示：IsLocalHtml=true 时显示 -->
+        <Style x:Key="LocalHtmlStyle" TargetType="wv2:WebView2">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsLocalHtml}" Value="True">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 空状态居中提示：HasHomepage=false 时显示 -->
+        <Style x:Key="NoHomepageHintStyle" TargetType="Border">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasHomepage}" Value="False">
+                    <Setter Property="Visibility" Value="Visible"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -96,11 +169,150 @@
             </StackPanel>
         </Grid>
 
-        <!-- ============ 内容区（可滚动） ============ -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled" Margin="24,0,24,24">
-            <Grid>
-                <!-- 卡片列表（WrapPanel 自动换行） -->
+        <!-- ============ 内容区：始终滚动显示主页卡片 + 版本动态 ============ -->
+        <ScrollViewer Grid.Row="1" Margin="24,0,24,24"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+
+                <!-- ============ 8.1 主页 URL 卡片：HasHomepage=true 且 IsHomepageUrl=true ============ -->
+                <Border Style="{StaticResource HomepageUrlCardStyle}"
+                        Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                        CornerRadius="8" Padding="24,20" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Home}" FontSize="22"
+                                         Margin="0,0,8,0" Opacity="0.8"/>
+                            <TextBlock Text="主页已配置" FontSize="18" FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                            <!-- 已配置徽章 -->
+                            <Border Background="#388E3C" CornerRadius="10" Padding="8,2"
+                                    VerticalAlignment="Center" Margin="12,0,0,0">
+                                <TextBlock Text="URL" FontSize="11" Foreground="White"/>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding HomepageUrl, StringFormat='地址：{0}'}"
+                                   Opacity="0.7" FontSize="13" TextTrimming="CharacterEllipsis"
+                                   Margin="0,0,0,12"/>
+                        <Button Command="{Binding OpenHomepageCommand}"
+                                Padding="16,6" MinWidth="180" HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.World}" Margin="0,0,8,0"/>
+                                <TextBlock Text="在浏览器中打开"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ 8.1 主页预设提示卡：HasHomepage=true 且 IsHomepagePreset=true ============ -->
+                <Border Style="{StaticResource HomepagePresetCardStyle}"
+                        Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                        CornerRadius="8" Padding="24,20" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Home}" FontSize="22"
+                                         Margin="0,0,8,0" Opacity="0.8"/>
+                            <TextBlock Text="主页预设" FontSize="18" FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                            <!-- 预设徽章 -->
+                            <Border Background="#1565C0" CornerRadius="10" Padding="8,2"
+                                    VerticalAlignment="Center" Margin="12,0,0,0">
+                                <TextBlock Text="预设" FontSize="11" Foreground="White"/>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock FontSize="13" Opacity="0.7" Margin="0,0,0,4">
+                            <Run Text="当前主页预设："/>
+                            <Run Text="{Binding HomepageConfig, Mode=OneWay}" FontWeight="SemiBold"/>
+                        </TextBlock>
+                        <TextBlock Text="预设模式下，下方仍然显示 Minecraft 版本动态资讯。"
+                                   Opacity="0.5" FontSize="12" TextWrapping="Wrap"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ 8.1 主页本地文件卡：HasHomepage=true 且 IsHomepageLocal=true ============ -->
+                <Border Style="{StaticResource HomepageLocalCardStyle}"
+                        Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                        CornerRadius="8" Padding="24,20" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Home}" FontSize="22"
+                                         Margin="0,0,8,0" Opacity="0.8"/>
+                            <TextBlock Text="本地主页" FontSize="18" FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                            <!-- 本地徽章 -->
+                            <Border Background="#6A1B9A" CornerRadius="10" Padding="8,2"
+                                    VerticalAlignment="Center" Margin="12,0,0,0">
+                                <TextBlock Text="本地" FontSize="11" Foreground="White"/>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock FontSize="13" Opacity="0.7" Margin="0,0,0,8">
+                            <Run Text="当前主页文件："/>
+                            <Run Text="{Binding HomepageConfig, Mode=OneWay}" FontWeight="SemiBold"/>
+                        </TextBlock>
+
+                        <!-- 本地图片：IsLocalImage=true 时显示 -->
+                        <Image Style="{StaticResource LocalImageStyle}"
+                               Source="{Binding LocalFileUri, Mode=OneWay}"
+                               Stretch="Uniform" MaxHeight="480"
+                               HorizontalAlignment="Center" Margin="0,4,0,8"/>
+
+                        <!-- 本地 HTML：IsLocalHtml=true 时显示 -->
+                        <wv2:WebView2 x:Name="HomepageLocalWebView"
+                                      Style="{StaticResource LocalHtmlStyle}"
+                                      Source="{Binding LocalFileUri, Mode=OneWay}"
+                                      Height="480" MinHeight="320"/>
+
+                        <!-- 未配置或文件不存在的提示 -->
+                        <TextBlock Text="未选择本地主页文件，或文件不存在。请在 设置 &gt; 个性化 &gt; 本地主页文件 中选择。"
+                                   FontSize="12" Opacity="0.5" TextWrapping="Wrap" Margin="0,4,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsLocalImage}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsLocalHtml}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <TextBlock Text="本地模式下，下方仍然显示 Minecraft 版本动态资讯。"
+                                   Opacity="0.5" FontSize="12" TextWrapping="Wrap"
+                                   Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ 8.2 空状态提示：HasHomepage=false 时显示 ============ -->
+                <Border Style="{StaticResource NoHomepageHintStyle}"
+                        Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                        CornerRadius="8" Padding="32,24" Margin="0,0,0,16"
+                        HorizontalAlignment="Center" MaxWidth="600">
+                    <StackPanel HorizontalAlignment="Center">
+                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Home}" FontSize="40"
+                                     Opacity="0.6" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+                        <TextBlock Text="您还没有配置主页哦，请现在 设置&gt;个性化 里设置一个"
+                                   FontSize="15" Opacity="0.8"
+                                   HorizontalAlignment="Center" TextAlignment="Center"
+                                   TextWrapping="Wrap" Margin="0,0,0,16"/>
+                        <Button Command="{Binding GoToSettingsCommand}"
+                                Padding="20,8" MinWidth="140" HorizontalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Settings}" Margin="0,0,8,0"/>
+                                <TextBlock Text="去设置"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ 版本动态列表（无论是否配置主页都显示） ============ -->
+                <TextBlock Text="版本发布动态" FontSize="18" FontWeight="SemiBold"
+                           Opacity="0.8" Margin="0,8,0,12"/>
+
                 <ItemsControl ItemsSource="{Binding NewsItems}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -140,14 +352,14 @@
 
                 <!-- 空状态：NewsItems 为空且非加载中时显示 -->
                 <Border Style="{StaticResource EmptyStateStyle}">
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,80,0,0">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,40,0,0">
                         <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Globe}" FontSize="48"
                                      Opacity="0.6" HorizontalAlignment="Center" Margin="0,0,0,12"/>
                         <TextBlock Text="暂无资讯，点击刷新" FontSize="16" Opacity="0.7"
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>
-            </Grid>
+            </StackPanel>
         </ScrollViewer>
     </Grid>
 </UserControl>

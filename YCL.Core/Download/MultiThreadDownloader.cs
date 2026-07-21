@@ -48,6 +48,9 @@ namespace YCL.Core.Download
         /// <summary>整体下载进度事件（所有分片汇总）</summary>
         public event EventHandler<DownloadProgressEventArgs>? ProgressChanged;
 
+        /// <summary>引擎名称（与 <see cref="IDownloadEngine.Name"/> 保持一致，便于显示）</summary>
+        public string Name => "Default";
+
         /// <summary>
         /// 构造多线程下载器。
         /// </summary>

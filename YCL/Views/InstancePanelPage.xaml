@@ -7,27 +7,104 @@
       mc:Ignorable="d"
       d:DesignHeight="700" d:DesignWidth="1000">
     <UserControl.Resources>
-        <!-- 布尔转可见性转换器（用于 IsModded → 徽章显示） -->
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
-
-        <!-- 详情区样式：选中实例为 null 时折叠 -->
-        <Style x:Key="DetailContainerStyle" TargetType="ScrollViewer">
-            <Setter Property="Visibility" Value="Visible"/>
+        <!-- 类型徽章默认样式（灰底，用于 old_beta / old_alpha / 未知类型） -->
+        <Style x:Key="TypeBadgeStyle" TargetType="Border">
+            <Setter Property="Background" Value="#888888"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="8,2"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding SelectedInstance}" Value="{x:Null}">
-                    <Setter Property="Visibility" Value="Collapsed"/>
+                <DataTrigger Binding="{Binding Type}" Value="release">
+                    <Setter Property="Background" Value="#2E7D32"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Type}" Value="snapshot">
+                    <Setter Property="Background" Value="#EF6C00"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Type}" Value="old_beta">
+                    <Setter Property="Background" Value="#6A1B9A"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Type}" Value="old_alpha">
+                    <Setter Property="Background" Value="#455A64"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
 
-        <!-- 空状态样式：选中实例为 null 时显示 -->
-        <Style x:Key="EmptyStateStyle" TargetType="Border">
-            <Setter Property="Visibility" Value="Collapsed"/>
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding SelectedInstance}" Value="{x:Null}">
-                    <Setter Property="Visibility" Value="Visible"/>
-                </DataTrigger>
-            </Style.Triggers>
+        <!-- 实例卡片样式：hover 时抬升 + 缩放 -->
+        <Style x:Key="InstanceCardStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="VerticalAlignment" Value="Top"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,0,16,16"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ControlTemplate.Resources>
+                            <!-- Storyboard 放在 ControlTemplate.Resources 中，避免 StaticResource 找不到 -->
+                            <Storyboard x:Key="HoverStoryboard">
+                                <DoubleAnimation Storyboard.TargetName="CardTranslate"
+                                                  Storyboard.TargetProperty="Y"
+                                                  To="-4" Duration="0:0:0.15"/>
+                                <DoubleAnimation Storyboard.TargetName="CardScale"
+                                                  Storyboard.TargetProperty="ScaleX"
+                                                  To="1.03" Duration="0:0:0.15"/>
+                                <DoubleAnimation Storyboard.TargetName="CardScale"
+                                                  Storyboard.TargetProperty="ScaleY"
+                                                  To="1.03" Duration="0:0:0.15"/>
+                                <DoubleAnimation Storyboard.TargetName="CardShadow"
+                                                  Storyboard.TargetProperty="Opacity"
+                                                  To="0.3" Duration="0:0:0.15"/>
+                            </Storyboard>
+                            <Storyboard x:Key="LeaveStoryboard">
+                                <DoubleAnimation Storyboard.TargetName="CardTranslate"
+                                                  Storyboard.TargetProperty="Y"
+                                                  To="0" Duration="0:0:0.15"/>
+                                <DoubleAnimation Storyboard.TargetName="CardScale"
+                                                  Storyboard.TargetProperty="ScaleX"
+                                                  To="1" Duration="0:0:0.15"/>
+                                <DoubleAnimation Storyboard.TargetName="CardScale"
+                                                  Storyboard.TargetProperty="ScaleY"
+                                                  To="1" Duration="0:0:0.15"/>
+                                <DoubleAnimation Storyboard.TargetName="CardShadow"
+                                                  Storyboard.TargetProperty="Opacity"
+                                                  To="0.15" Duration="0:0:0.15"/>
+                            </Storyboard>
+                        </ControlTemplate.Resources>
+                        <Border x:Name="CardBorder"
+                                Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                                CornerRadius="8"
+                                Padding="20,16"
+                                Width="260"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform x:Name="CardScale" ScaleX="1" ScaleY="1"/>
+                                    <TranslateTransform x:Name="CardTranslate" Y="0"/>
+                                </TransformGroup>
+                            </Border.RenderTransform>
+                            <Border.Effect>
+                                <DropShadowEffect x:Name="CardShadow" Color="Black"
+                                                  Opacity="0.15" BlurRadius="6"
+                                                  ShadowDepth="2" Direction="270"/>
+                            </Border.Effect>
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <!-- hover 时抬升 4 像素 + 缩放 1.03 + 加深阴影 -->
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard Storyboard="{StaticResource HoverStoryboard}"/>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard Storyboard="{StaticResource LeaveStoryboard}"/>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- 加载中遮罩样式 -->
@@ -40,12 +117,24 @@
             </Style.Triggers>
         </Style>
 
-        <!-- 小组件卡片样式 -->
-        <Style x:Key="StatCardStyle" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundAltMediumBrush}"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="14,10"/>
-            <Setter Property="Margin" Value="0,0,10,0"/>
+        <!-- 空状态样式：Instances 为空时显示 -->
+        <Style x:Key="EmptyStateStyle" TargetType="Border">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Instances.Count}" Value="0">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 详情区样式：默认显示，SelectedInstance 为 null 时折叠 -->
+        <Style x:Key="DetailsPanelStyle" TargetType="Border">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SelectedInstance}" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
     </UserControl.Resources>
 
@@ -53,9 +142,9 @@
         <Grid.RowDefinitions>
             <!-- 顶部：标题 + 刷新按钮 -->
             <RowDefinition Height="Auto"/>
-            <!-- 顶部小组件区 -->
+            <!-- 顶部统计小组件 -->
             <RowDefinition Height="Auto"/>
-            <!-- 主体两栏：左列表 + 右详情 -->
+            <!-- 主体：卡片网格 + 详情区 -->
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -80,107 +169,160 @@
             </Button>
         </Grid>
 
-        <!-- ============ 顶部小组件统计区 ============ -->
-        <UniformGrid Grid.Row="1" Rows="1" Columns="5" Margin="24,4,24,12">
-            <!-- 上次游玩 -->
-            <Border Style="{StaticResource StatCardStyle}">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Opacity="0.6">
-                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.History}" FontSize="14" Margin="0,0,6,0"/>
-                        <TextBlock Text="上次游玩" FontSize="12"/>
+        <!-- ============ 顶部统计小组件 ============ -->
+        <UniformGrid Grid.Row="1" Columns="4" Rows="1" Margin="24,0,24,16">
+            <!-- 实例数 -->
+            <Border Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                    CornerRadius="8" Padding="16,12" Margin="0,0,8,0">
+                <StackPanel Orientation="Horizontal">
+                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Tiles}" FontSize="24"
+                                 Opacity="0.7" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="实例总数" FontSize="11" Opacity="0.6"/>
+                        <TextBlock Text="{Binding Instances.Count, Mode=OneWay}" FontSize="22" FontWeight="SemiBold"/>
                     </StackPanel>
-                    <TextBlock Text="{Binding LastPlayedText}" FontSize="15" FontWeight="SemiBold"
-                               Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </Border>
             <!-- 模组数 -->
-            <Border Style="{StaticResource StatCardStyle}">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Opacity="0.6">
-                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Puzzle}" FontSize="14" Margin="0,0,6,0"/>
-                        <TextBlock Text="模组" FontSize="12"/>
+            <Border Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                    CornerRadius="8" Padding="16,12" Margin="0,0,8,0">
+                <StackPanel Orientation="Horizontal">
+                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Package}" FontSize="24"
+                                 Opacity="0.7" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="模组总数" FontSize="11" Opacity="0.6"/>
+                        <TextBlock Text="{Binding TotalMods, Mode=OneWay}" FontSize="22" FontWeight="SemiBold"/>
                     </StackPanel>
-                    <TextBlock Text="{Binding ModCount}" FontSize="22" FontWeight="SemiBold" Margin="0,4,0,0"/>
                 </StackPanel>
             </Border>
             <!-- 存档数 -->
-            <Border Style="{StaticResource StatCardStyle}">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Opacity="0.6">
-                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Save}" FontSize="14" Margin="0,0,6,0"/>
-                        <TextBlock Text="存档" FontSize="12"/>
+            <Border Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                    CornerRadius="8" Padding="16,12" Margin="0,0,8,0">
+                <StackPanel Orientation="Horizontal">
+                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Save}" FontSize="24"
+                                 Opacity="0.7" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="存档总数" FontSize="11" Opacity="0.6"/>
+                        <TextBlock Text="{Binding TotalSaves, Mode=OneWay}" FontSize="22" FontWeight="SemiBold"/>
                     </StackPanel>
-                    <TextBlock Text="{Binding SaveCount}" FontSize="22" FontWeight="SemiBold" Margin="0,4,0,0"/>
                 </StackPanel>
             </Border>
             <!-- 截图数 -->
-            <Border Style="{StaticResource StatCardStyle}">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Opacity="0.6">
-                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Camera}" FontSize="14" Margin="0,0,6,0"/>
-                        <TextBlock Text="截图" FontSize="12"/>
+            <Border Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                    CornerRadius="8" Padding="16,12" Margin="0,0,0,0">
+                <StackPanel Orientation="Horizontal">
+                    <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Camera}" FontSize="24"
+                                 Opacity="0.7" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="截图总数" FontSize="11" Opacity="0.6"/>
+                        <TextBlock Text="{Binding TotalScreenshots, Mode=OneWay}" FontSize="22" FontWeight="SemiBold"/>
                     </StackPanel>
-                    <TextBlock Text="{Binding ScreenshotCount}" FontSize="22" FontWeight="SemiBold" Margin="0,4,0,0"/>
-                </StackPanel>
-            </Border>
-            <!-- 资源包数 -->
-            <Border Style="{StaticResource StatCardStyle}">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Opacity="0.6">
-                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Package}" FontSize="14" Margin="0,0,6,0"/>
-                        <TextBlock Text="资源包" FontSize="12"/>
-                    </StackPanel>
-                    <TextBlock Text="{Binding ResourcePackCount}" FontSize="22" FontWeight="SemiBold" Margin="0,4,0,0"/>
                 </StackPanel>
             </Border>
         </UniformGrid>
 
-        <!-- ============ 主体两栏：左实例列表 + 右详情 ============ -->
+        <!-- ============ 主体：卡片网格 + 详情区 ============ -->
         <Grid Grid.Row="2" Margin="24,0,24,16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="240"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <!-- 卡片网格 -->
+                <RowDefinition Height="*"/>
+                <!-- 详情区（选中实例时显示） -->
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-            <!-- 左栏：实例列表 -->
-            <Border Grid.Column="0" Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
-                    CornerRadius="8" Margin="0,0,8,0" Padding="4">
+            <!-- 卡片网格 -->
+            <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
                 <Grid>
-                    <ListBox ItemsSource="{Binding Instances}"
-                             SelectedItem="{Binding SelectedInstance, Mode=TwoWay}"
-                             Background="Transparent" BorderThickness="0"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
-                                <Setter Property="Padding" Value="8,6"/>
-                                <Setter Property="Margin" Value="0,2"/>
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                            </Style>
-                        </ListBox.ItemContainerStyle>
-                        <ListBox.ItemTemplate>
+                    <ItemsControl ItemsSource="{Binding Instances}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel>
-                                    <!-- 版本 Id -->
-                                    <TextBlock Text="{Binding Id}" FontWeight="SemiBold" FontSize="14"
-                                               TextTrimming="CharacterEllipsis"/>
-                                    <!-- 类型徽章 + 模组加载器 -->
-                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                        <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
-                                                CornerRadius="3" Padding="6,1" Margin="0,0,4,0">
-                                            <TextBlock Text="{Binding Type}" FontSize="11" Opacity="0.8"/>
-                                        </Border>
-                                        <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
-                                                CornerRadius="3" Padding="6,1"
-                                                Visibility="{Binding IsModded, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <TextBlock Text="{Binding ModLoaderName}" FontSize="11" Opacity="0.8"/>
-                                        </Border>
-                                    </StackPanel>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                                <!-- 整张卡片作为 Button：点击触发 ShowInstanceDetailsCommand -->
+                                <Button Style="{StaticResource InstanceCardStyle}"
+                                        Command="{Binding DataContext.ShowInstanceDetailsCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}">
+                                    <StackPanel>
+                                        <!-- 版本图标（大） -->
+                                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Game}"
+                                                     FontSize="40" Opacity="0.6"
+                                                     HorizontalAlignment="Left"
+                                                     Margin="0,0,0,12"/>
 
-                    <!-- 加载中提示 -->
+                                        <!-- 版本 Id（大字粗体） -->
+                                        <TextBlock Text="{Binding Id}" FontSize="22" FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis" Margin="0,0,0,8"/>
+
+                                        <!-- 类型徽章 + 模组加载器徽章 -->
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                            <Border Style="{StaticResource TypeBadgeStyle}">
+                                                <TextBlock Text="{Binding TypeLabel}" FontSize="11"
+                                                           Foreground="White" FontWeight="SemiBold"/>
+                                            </Border>
+                                            <!-- 模组加载器徽章（仅 IsModded=true 时显示） -->
+                                            <Border Background="#1565C0" CornerRadius="10" Padding="8,2"
+                                                    VerticalAlignment="Center" Margin="8,0,0,0">
+                                                <TextBlock Text="{Binding ModLoaderName}" FontSize="11"
+                                                           Foreground="White" FontWeight="SemiBold"/>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <!-- 小统计：模组数 / 存档数 / 截图数（带图标） -->
+                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,8" Opacity="0.75">
+                                            <!-- 模组数 -->
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Package}"
+                                                             FontSize="12" Margin="0,0,4,0"/>
+                                                <TextBlock Text="{Binding ModCount, Mode=OneWay}" FontSize="12"/>
+                                            </StackPanel>
+                                            <TextBlock Text=" · " FontSize="12" Margin="6,0"/>
+                                            <!-- 存档数 -->
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Save}"
+                                                             FontSize="12" Margin="0,0,4,0"/>
+                                                <TextBlock Text="{Binding SaveCount, Mode=OneWay}" FontSize="12"/>
+                                            </StackPanel>
+                                            <TextBlock Text=" · " FontSize="12" Margin="6,0"/>
+                                            <!-- 截图数 -->
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Camera}"
+                                                             FontSize="12" Margin="0,0,4,0"/>
+                                                <TextBlock Text="{Binding ScreenshotCount, Mode=OneWay}" FontSize="12"/>
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <!-- 上次游玩时间 -->
+                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.History}"
+                                                         FontSize="12" Opacity="0.5" Margin="0,0,6,0"/>
+                                            <TextBlock FontSize="11" Opacity="0.6" VerticalAlignment="Center">
+                                                <Run Text="上次游玩："/>
+                                                <Run Text="{Binding LastPlayedText, Mode=OneWay}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- 空状态：无实例 -->
+                    <Border Style="{StaticResource EmptyStateStyle}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,40,0,0">
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.ViewAll}" FontSize="48" Opacity="0.6"
+                                         HorizontalAlignment="Center" Margin="0,0,0,12"/>
+                            <TextBlock Text="还没有已安装的实例" FontSize="16" Opacity="0.7"
+                                       HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                            <TextBlock Text="请到主页或下载页下载版本" FontSize="13" Opacity="0.5"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 加载中遮罩 -->
                     <Border Style="{StaticResource LoadingStyle}"
                             Background="#80000000" CornerRadius="8">
                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -189,216 +331,200 @@
                         </StackPanel>
                     </Border>
                 </Grid>
-            </Border>
+            </ScrollViewer>
 
-            <!-- 右栏：详情区 -->
-            <Border Grid.Column="1" Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
-                    CornerRadius="8" ClipToBounds="True">
+            <!-- ============ 详情区：选中实例时显示 ============ -->
+            <Border Grid.Row="1" Style="{StaticResource DetailsPanelStyle}"
+                    Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                    CornerRadius="8" Padding="24,20" Margin="0,16,0,0" MaxHeight="320">
                 <Grid>
-                    <!-- 详情内容（选中实例时显示） -->
-                    <ScrollViewer Style="{StaticResource DetailContainerStyle}"
-                                  VerticalScrollBarVisibility="Auto" Padding="20,16">
-                        <StackPanel>
-                            <!-- ============ 基本信息 ============ -->
-                            <TextBlock Text="基本信息" FontSize="18" FontWeight="SemiBold"
-                                       Margin="0,0,0,8" Opacity="0.8"/>
-                            <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
-                                    CornerRadius="6" Padding="12,10" Margin="0,0,0,16">
-                                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 详情区顶部：标题 + 关闭按钮 -->
+                    <Grid Grid.Row="0" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.ViewAll}" FontSize="22"
+                                         Margin="0,0,8,0" Opacity="0.8"/>
+                            <TextBlock FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center">
+                                <Run Text="实例详情："/>
+                                <Run Text="{Binding SelectedInstance.Id, Mode=OneWay}"/>
+                            </TextBlock>
+                        </StackPanel>
+                        <Button Grid.Column="1" Command="{Binding CloseDetailsCommand}"
+                                Padding="8,4" MinWidth="80">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Cancel}" Margin="0,0,6,0"/>
+                                <TextBlock Text="关闭"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <!-- 详情内容：水平布局，左基本信息 + 右各资源列表 -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="220"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 左列：基本信息 -->
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="基本信息" FontSize="14" FontWeight="SemiBold"
+                                           Opacity="0.85" Margin="0,0,0,8"/>
+                                <TextBlock FontSize="12" Opacity="0.7" Margin="0,2,0,0">
+                                    <Run Text="版本 Id："/>
+                                    <Run Text="{Binding SelectedInstance.Id, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock FontSize="12" Opacity="0.7" Margin="0,2,0,0">
+                                    <Run Text="类型："/>
+                                    <Run Text="{Binding SelectedInstance.TypeLabel, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock FontSize="12" Opacity="0.7" Margin="0,2,0,0">
+                                    <Run Text="模组加载器："/>
+                                    <Run Text="{Binding SelectedInstance.ModLoaderName, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock FontSize="12" Opacity="0.7" Margin="0,2,0,0">
+                                    <Run Text="上次游玩："/>
+                                    <Run Text="{Binding SelectedInstance.LastPlayedText, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock FontSize="12" Opacity="0.7" Margin="0,2,0,0" TextTrimming="CharacterEllipsis">
+                                    <Run Text="目录："/>
+                                    <Run Text="{Binding SelectedInstance.Directory, Mode=OneWay}"/>
+                                </TextBlock>
+
+                                <!-- 资源数量统计 -->
+                                <TextBlock Text="资源统计" FontSize="14" FontWeight="SemiBold"
+                                           Opacity="0.85" Margin="0,16,0,8"/>
+                                <TextBlock FontSize="12" Opacity="0.7" Margin="0,2,0,0">
+                                    <Run Text="模组："/>
+                                    <Run Text="{Binding ModCount, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock FontSize="12" Opacity="0.7" Margin="0,2,0,0">
+                                    <Run Text="存档："/>
+                                    <Run Text="{Binding SaveCount, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock FontSize="12" Opacity="0.7" Margin="0,2,0,0">
+                                    <Run Text="截图："/>
+                                    <Run Text="{Binding ScreenshotCount, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock FontSize="12" Opacity="0.7" Margin="0,2,0,0">
+                                    <Run Text="资源包："/>
+                                    <Run Text="{Binding ResourcePackCount, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock FontSize="12" Opacity="0.7" Margin="0,2,0,0">
+                                    <Run Text="光影包："/>
+                                    <Run Text="{Binding ShaderCount, Mode=OneWay}"/>
+                                </TextBlock>
+                            </StackPanel>
+
+                            <!-- 右列：资源列表（Tabs 风格，用 WrapPanel+ItemsControl 简化） -->
+                            <StackPanel Grid.Column="2">
+                                <!-- 模组列表 -->
+                                <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="0.85" Margin="0,0,0,4">
+                                    <Run Text="模组（"/>
+                                    <Run Text="{Binding Mods.Count, Mode=OneWay}"/>
+                                    <Run Text="）"/>
+                                </TextBlock>
+                                <ItemsControl ItemsSource="{Binding Mods}" MaxHeight="120" Margin="0,0,0,8">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis" Margin="0,1,0,1">
+                                                <Run Text="{Binding DisplayName, Mode=OneWay}"/>
+                                                <Run Text="  "/>
+                                                <Run Text="{Binding Version, Mode=OneWay}" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- 存档列表 -->
+                                <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="0.85" Margin="0,4,0,4">
+                                    <Run Text="存档（"/>
+                                    <Run Text="{Binding Saves.Count, Mode=OneWay}"/>
+                                    <Run Text="）"/>
+                                </TextBlock>
+                                <ItemsControl ItemsSource="{Binding Saves}" MaxHeight="120" Margin="0,0,0,8">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis" Margin="0,1,0,1">
+                                                <Run Text="{Binding Name, Mode=OneWay}"/>
+                                                <Run Text="  "/>
+                                                <Run Text="{Binding LastModifiedDisplay, Mode=OneWay}" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- 资源包 + 光影包（两列） -->
+                                <Grid Margin="0,4,0,0">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="12"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="版本 Id：" Opacity="0.6" Margin="0,0,8,4"/>
-                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedInstance.Id}" FontWeight="SemiBold" Margin="0,0,0,4"/>
-
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="类型：" Opacity="0.6" Margin="0,0,8,4"/>
-                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedInstance.Type}" Margin="0,0,0,4"/>
-
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="模组加载器：" Opacity="0.6" Margin="0,0,8,4"/>
-                                    <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,0,4">
-                                        <Run Text="{Binding SelectedInstance.ModLoaderName, Mode=OneWay, TargetNullValue=无}"/>
-                                    </TextBlock>
-
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="父版本：" Opacity="0.6" Margin="0,0,8,4"/>
-                                    <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,0,0,4">
-                                        <Run Text="{Binding SelectedInstance.ParentVersionId, Mode=OneWay, TargetNullValue=无}"/>
-                                    </TextBlock>
-
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="目录路径：" Opacity="0.6" Margin="0,0,8,0"/>
-                                    <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedInstance.Directory}"
-                                               TextTrimming="CharacterEllipsis" Opacity="0.8"/>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="0.85" Margin="0,0,0,4">
+                                            <Run Text="资源包（"/>
+                                            <Run Text="{Binding ResourcePacks.Count, Mode=OneWay}"/>
+                                            <Run Text="）"/>
+                                        </TextBlock>
+                                        <ItemsControl ItemsSource="{Binding ResourcePacks}" MaxHeight="100">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Mode=OneWay}" FontSize="12"
+                                                               Opacity="0.7" TextTrimming="CharacterEllipsis"
+                                                               Margin="0,1,0,1"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="0.85" Margin="0,0,0,4">
+                                            <Run Text="光影包（"/>
+                                            <Run Text="{Binding Shaders.Count, Mode=OneWay}"/>
+                                            <Run Text="）"/>
+                                        </TextBlock>
+                                        <ItemsControl ItemsSource="{Binding Shaders}" MaxHeight="100">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Mode=OneWay}" FontSize="12"
+                                                               Opacity="0.7" TextTrimming="CharacterEllipsis"
+                                                               Margin="0,1,0,1"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
                                 </Grid>
-                            </Border>
 
-                            <!-- ============ 模组列表 ============ -->
-                            <TextBlock FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" Opacity="0.8">
-                                <Run Text="模组"/>
-                                <Run Text=" ("/>
-                                <Run Text="{Binding Mods.Count, Mode=OneWay}"/>
-                                <Run Text=")"/>
-                            </TextBlock>
-                            <ItemsControl ItemsSource="{Binding Mods}" Margin="0,0,0,16">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
-                                                CornerRadius="4" Padding="10,6" Margin="0,2">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0">
-                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                    <TextBlock Text="{Binding FileName}" FontSize="11" Opacity="0.6"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                </StackPanel>
-                                                <TextBlock Grid.Column="1" Text="{Binding Version}" Opacity="0.7"
-                                                           VerticalAlignment="Center" Margin="8,0"/>
-                                                <Border Grid.Column="2" CornerRadius="3" Padding="6,2"
-                                                        VerticalAlignment="Center" Margin="8,0,0,0">
-                                                    <Border.Style>
-                                                        <Style TargetType="Border">
-                                                            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseMediumBrush}"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding Enabled}" Value="True">
-                                                                    <Setter Property="Background" Value="#388E3C"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Border.Style>
-                                                    <TextBlock FontSize="11" Foreground="White">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Text" Value="已禁用"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding Enabled}" Value="True">
-                                                                        <Setter Property="Text" Value="已启用"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                </Border>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!-- ============ 世界（存档）列表 ============ -->
-                            <TextBlock FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" Opacity="0.8">
-                                <Run Text="世界"/>
-                                <Run Text=" ("/>
-                                <Run Text="{Binding Saves.Count, Mode=OneWay}"/>
-                                <Run Text=")"/>
-                            </TextBlock>
-                            <ItemsControl ItemsSource="{Binding Saves}" Margin="0,0,0,16">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
-                                                CornerRadius="4" Padding="10,6" Margin="0,2">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold"
-                                                           TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Grid.Column="1" Text="{Binding LastModifiedDisplay}" Opacity="0.7"
-                                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!-- ============ 资源包列表 ============ -->
-                            <TextBlock FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" Opacity="0.8">
-                                <Run Text="资源包"/>
-                                <Run Text=" ("/>
-                                <Run Text="{Binding ResourcePacks.Count, Mode=OneWay}"/>
-                                <Run Text=")"/>
-                            </TextBlock>
-                            <ItemsControl ItemsSource="{Binding ResourcePacks}" Margin="0,0,0,16">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
-                                                CornerRadius="4" Padding="10,6" Margin="0,2">
-                                            <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis"/>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!-- ============ 光影包列表 ============ -->
-                            <TextBlock FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" Opacity="0.8">
-                                <Run Text="光影包"/>
-                                <Run Text=" ("/>
-                                <Run Text="{Binding Shaders.Count, Mode=OneWay}"/>
-                                <Run Text=")"/>
-                            </TextBlock>
-                            <ItemsControl ItemsSource="{Binding Shaders}" Margin="0,0,0,16">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
-                                                CornerRadius="4" Padding="10,6" Margin="0,2">
-                                            <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis"/>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!-- ============ 截图列表（缩略图） ============ -->
-                            <TextBlock FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" Opacity="0.8">
-                                <Run Text="截图"/>
-                                <Run Text=" ("/>
-                                <Run Text="{Binding Screenshots.Count, Mode=OneWay}"/>
-                                <Run Text=")"/>
-                            </TextBlock>
-                            <ItemsControl ItemsSource="{Binding Screenshots}" Margin="0,0,0,8">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
-                                                CornerRadius="4" Padding="4" Margin="4">
-                                            <StackPanel Width="128">
-                                                <Image Source="{Binding FilePath}" Stretch="UniformToFill"
-                                                       Height="90" Width="120"/>
-                                                <TextBlock Text="{Binding FileName}" FontSize="10" Opacity="0.6"
-                                                           TextTrimming="CharacterEllipsis" Margin="0,4,0,0"
-                                                           HorizontalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
+                                <!-- 截图列表 -->
+                                <TextBlock FontSize="14" FontWeight="SemiBold" Opacity="0.85" Margin="0,12,0,4">
+                                    <Run Text="截图（"/>
+                                    <Run Text="{Binding Screenshots.Count, Mode=OneWay}"/>
+                                    <Run Text="）"/>
+                                </TextBlock>
+                                <ItemsControl ItemsSource="{Binding Screenshots}" MaxHeight="120">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis" Margin="0,1,0,1">
+                                                <Run Text="{Binding FileName, Mode=OneWay}"/>
+                                                <Run Text="  "/>
+                                                <Run Text="{Binding CaptureTimeDisplay, Mode=OneWay}" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Grid>
                     </ScrollViewer>
-
-                    <!-- 空状态：未选中实例 -->
-                    <Border Style="{StaticResource EmptyStateStyle}">
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.ViewAll}" FontSize="48" Opacity="0.6"
-                                         HorizontalAlignment="Center" Margin="0,0,0,12"/>
-                            <TextBlock Text="请选择一个实例" FontSize="16" Opacity="0.7"
-                                       HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
                 </Grid>
             </Border>
         </Grid>

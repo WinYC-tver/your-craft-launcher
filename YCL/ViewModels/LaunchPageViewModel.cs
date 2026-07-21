@@ -1,16 +1,22 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using iNKORE.UI.WPF.Modern.Controls;
 using YCL.Core.Accounts;
 using YCL.Core.Launch;
 using YCL.Core.Utils;
 using YCL.Models.Accounts;
 using YCL.Services;
+using MessageBox = System.Windows.MessageBox;
 
 namespace YCL.ViewModels
 {
@@ -27,6 +33,13 @@ namespace YCL.ViewModels
         private readonly IAccountManager _accountManager;
         private readonly SkinService _skinService;
         private readonly INavigationService _navigationService;
+
+        /// <summary>最近一次启动使用的版本 id（用于崩溃报告）</summary>
+        private string? _lastLaunchVersionId;
+        /// <summary>最近一次启动使用的 Java 路径（用于崩溃报告）</summary>
+        private string? _lastLaunchJavaPath;
+        /// <summary>最近一次启动使用的 .minecraft 路径（用于崩溃报告）</summary>
+        private string? _lastLaunchMinecraftPath;
 
         public LaunchPageViewModel(
             IGameLauncher gameLauncher,
@@ -299,6 +312,11 @@ namespace YCL.ViewModels
 
             try
             {
+                // 保存本次启动信息，供游戏崩溃时生成报告使用
+                _lastLaunchVersionId = SelectedVersion;
+                _lastLaunchJavaPath = javaPath;
+                _lastLaunchMinecraftPath = minecraftPath;
+
                 var success = await _gameLauncher.LaunchAsync(
                     minecraftPath, SelectedVersion, account, javaPath,
                     MaxMemoryMb, MinMemoryMb);
@@ -438,7 +456,57 @@ namespace YCL.ViewModels
                     ? $"游戏已正常退出（退出码 {e.ExitCode}）"
                     : $"游戏异常退出（退出码 {e.ExitCode}）";
                 ProgressPercent = -1;
+
+                // 异常退出时生成崩溃报告并弹全屏提示窗口（规格9.1）
+                if (!e.IsSuccess)
+                {
+                    ShowCrashReport(e.ExitCode);
+                }
             });
+        }
+
+        /// <summary>
+        /// 收集游戏日志生成崩溃报告，弹出全屏 CrashReportWindow 显示崩溃分析、
+        /// 解决方案列表和报告路径（v26.1.0.5 规格9.1）。
+        /// 窗口内部已实现"打开报告文件夹"按钮。
+        /// </summary>
+        private void ShowCrashReport(int exitCode)
+        {
+            try
+            {
+                // 收集 LogEntries 拼成完整游戏日志
+                var logBuilder = new StringBuilder();
+                foreach (var entry in LogEntries)
+                {
+                    logBuilder.AppendLine(entry.Text);
+                }
+                var gameLog = logBuilder.ToString();
+
+                // 调用静态方法生成崩溃报告
+                var reportPath = CrashReportService.GenerateCrashReport(
+                    _lastLaunchVersionId ?? "unknown",
+                    exitCode,
+                    gameLog,
+                    _lastLaunchMinecraftPath ?? string.Empty,
+                    _lastLaunchJavaPath ?? string.Empty);
+
+                // 创建并显示全屏崩溃窗口
+                var crashWindow = new Views.CrashReportWindow(
+                    _lastLaunchVersionId ?? "unknown",
+                    exitCode,
+                    gameLog,
+                    reportPath);
+                // 设为主窗口的子窗口，模态显示
+                if (Application.Current?.MainWindow is { } mainWindow)
+                {
+                    crashWindow.Owner = mainWindow;
+                }
+                crashWindow.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("显示崩溃报告窗口失败", ex);
+            }
         }
 
         /// <summary>启动状态变化回调</summary>

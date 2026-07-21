@@ -8,26 +8,70 @@
       d:DesignHeight="640" d:DesignWidth="1040"
       Background="Transparent">
     <UserControl.Resources>
-        <!-- 启动按钮样式：主题色背景 -->
+        <!-- 启动按钮样式：主题色背景，圆角 12，hover 时缩放+阴影 -->
         <Style x:Key="LaunchButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Background" Value="{DynamicResource SystemAccentColor}"/>
             <Setter Property="Foreground" Value="{DynamicResource SystemAccentTextColor}"/>
             <Setter Property="FontSize" Value="20"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <ScaleTransform ScaleX="1" ScaleY="1"/>
+                </Setter.Value>
+            </Setter>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="LaunchBorder"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="8"
+                                CornerRadius="12"
                                 Padding="{TemplateBinding Padding}">
+                            <Border.Effect>
+                                <DropShadowEffect x:Name="LaunchShadow"
+                                                  Color="Black"
+                                                  Opacity="0.2"
+                                                  BlurRadius="0"
+                                                  ShadowDepth="0"/>
+                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Opacity" Value="0.9"/>
-                            </Trigger>
+                            <!-- 鼠标进入：缩放 1.05 + 阴影增强 -->
+                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                         To="1.05" Duration="0:0:0.2"/>
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                         To="1.05" Duration="0:0:0.2"/>
+                                        <DoubleAnimation Storyboard.TargetName="LaunchShadow"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.4" Duration="0:0:0.2"/>
+                                        <DoubleAnimation Storyboard.TargetName="LaunchShadow"
+                                                         Storyboard.TargetProperty="BlurRadius"
+                                                         To="20" Duration="0:0:0.2"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <!-- 鼠标离开：还原 -->
+                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                         To="1" Duration="0:0:0.2"/>
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                         To="1" Duration="0:0:0.2"/>
+                                        <DoubleAnimation Storyboard.TargetName="LaunchShadow"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.2" Duration="0:0:0.2"/>
+                                        <DoubleAnimation Storyboard.TargetName="LaunchShadow"
+                                                         Storyboard.TargetProperty="BlurRadius"
+                                                         To="0" Duration="0:0:0.2"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.5"/>
                             </Trigger>
@@ -88,20 +132,30 @@
     <Grid>
         <!-- ============ 中间区域：版本名 + 状态 ============ -->
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-            <!-- 当前版本名（大字） -->
+            <!-- 当前版本名（大字）+ 加载时淡入动画（Opacity 0→0.9，0.3s） -->
             <TextBlock Text="{Binding SelectedVersion, FallbackValue='未选择版本'}"
                        FontSize="56" FontWeight="Bold"
-                       HorizontalAlignment="Center" Opacity="0.9">
+                       HorizontalAlignment="Center" Opacity="0">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding SelectedVersion}" Value="{x:Null}">
                                 <Setter Property="Text" Value="未选择版本"/>
-                                <Setter Property="Opacity" Value="0.4"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </TextBlock.Style>
+                <!-- Loaded 时淡入 0.3s -->
+                <TextBlock.Triggers>
+                    <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 From="0" To="0.9" Duration="0:0:0.3"/>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </EventTrigger>
+                </TextBlock.Triggers>
             </TextBlock>
 
             <!-- 状态文字 -->
@@ -123,10 +177,32 @@
         <!-- ============ 左下角：账户 + 启动按钮 + 版本下拉 ============ -->
         <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Left"
                     Margin="32,0,0,32">
-            <!-- 账户切换按钮（在启动按钮上方） -->
+            <!-- 账户切换按钮（在启动按钮上方，hover 时轻微上移） -->
             <Button Command="{Binding SwitchAccountCommand}"
                     Margin="0,0,0,12" Padding="12,8"
-                    HorizontalAlignment="Left">
+                    HorizontalAlignment="Left"
+                    RenderTransformOrigin="0.5,0.5">
+                <Button.RenderTransform>
+                    <TranslateTransform Y="0"/>
+                </Button.RenderTransform>
+                <Button.Triggers>
+                    <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                 To="-2" Duration="0:0:0.2"/>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </EventTrigger>
+                    <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                 To="0" Duration="0:0:0.2"/>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </EventTrigger>
+                </Button.Triggers>
                 <StackPanel Orientation="Horizontal">
                     <!-- 账户头像 -->
                     <Border Width="28" Height="28" CornerRadius="14" ClipToBounds="True"

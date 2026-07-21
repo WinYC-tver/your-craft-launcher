@@ -1,0 +1,66 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+    <!-- ====== 應用標題 ====== -->
+    <sys:String x:Key="App_Title">YCL 啟動器</sys:String>
+
+    <!-- ====== 導航板塊 ====== -->
+    <sys:String x:Key="Nav_Launch">啟動</sys:String>
+    <sys:String x:Key="Nav_Download">下載資源</sys:String>
+    <sys:String x:Key="Nav_News">新聞</sys:String>
+    <sys:String x:Key="Nav_Functions">功能</sys:String>
+    <sys:String x:Key="Nav_Settings">設定</sys:String>
+    <sys:String x:Key="Nav_Multiplayer">聯機</sys:String>
+    <sys:String x:Key="Nav_Instance">實例面板</sys:String>
+    <sys:String x:Key="Nav_Java">Java</sys:String>
+    <sys:String x:Key="Nav_Account">帳戶</sys:String>
+    <sys:String x:Key="Nav_Saves">存檔</sys:String>
+    <sys:String x:Key="Nav_Screenshots">截圖</sys:String>
+
+    <!-- ====== 啟動頁 ====== -->
+    <sys:String x:Key="Launch_Button">啟動遊戲</sys:String>
+    <sys:String x:Key="Launch_Status_Ready">就緒</sys:String>
+    <sys:String x:Key="Launch_Status_Launching">啟動中...</sys:String>
+    <sys:String x:Key="Launch_Status_Running">執行中</sys:String>
+
+    <!-- ====== 設定頁分類 ====== -->
+    <sys:String x:Key="Settings_LaunchManage">啟動與管理</sys:String>
+    <sys:String x:Key="Settings_GameSettings">遊戲設定</sys:String>
+    <sys:String x:Key="Settings_Personalize">個性化</sys:String>
+    <sys:String x:Key="Settings_Download">下載</sys:String>
+    <sys:String x:Key="Settings_Advanced">進階</sys:String>
+    <sys:String x:Key="Settings_About">關於</sys:String>
+    <sys:String x:Key="Settings_Search_Placeholder">搜尋設定項...</sys:String>
+
+    <!-- ====== 通用按鈕 ====== -->
+    <sys:String x:Key="Common_OK">確定</sys:String>
+    <sys:String x:Key="Common_Cancel">取消</sys:String>
+    <sys:String x:Key="Common_Save">儲存</sys:String>
+    <sys:String x:Key="Common_Refresh">重新整理</sys:String>
+    <sys:String x:Key="Common_Back">返回</sys:String>
+
+    <!-- ====== 帳戶頁 ====== -->
+    <sys:String x:Key="Account_NoAccount">未選擇帳戶</sys:String>
+    <sys:String x:Key="Account_SwitchAccount">切換帳戶</sys:String>
+
+    <!-- ====== Java 頁 ====== -->
+    <sys:String x:Key="Java_AutoSelect">自動選擇</sys:String>
+    <sys:String x:Key="Java_InstallOnline">線上安裝 Java</sys:String>
+
+    <!-- ====== 新聞頁 ====== -->
+    <sys:String x:Key="News_NoHomepage">您還沒有配置主頁哦，請現在 設定&gt;個性化 裡設置一個</sys:String>
+    <sys:String x:Key="News_GoToSettings">去設定</sys:String>
+
+    <!-- ====== 下載頁 ====== -->
+    <sys:String x:Key="Download_SearchPlaceholder">搜尋模組、整合包、資源包...</sys:String>
+    <sys:String x:Key="Download_Category_Game">遊戲</sys:String>
+    <sys:String x:Key="Download_Category_Resource">資源</sys:String>
+    <sys:String x:Key="Download_Category_Favorites">收藏</sys:String>
+    <sys:String x:Key="Download_GetNow">立即取得</sys:String>
+
+    <!-- ====== 崩潰報告視窗 ====== -->
+    <sys:String x:Key="Crash_Title">遊戲崩潰了</sys:String>
+    <sys:String x:Key="Crash_Close">關閉</sys:String>
+    <sys:String x:Key="Crash_OpenFolder">打開報告資料夾</sys:String>
+    <sys:String x:Key="Crash_CopyPath">複製路徑</sys:String>
+</ResourceDictionary>

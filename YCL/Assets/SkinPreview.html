@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>皮肤预览</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: transparent;
+            width: 100%;
+            height: 100%;
+        }
+        #skin_container {
+            display: block;
+            margin: 0 auto;
+        }
+        #status {
+            color: #aaa;
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+            font-size: 12px;
+            padding: 16px;
+            text-align: center;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="skin_container"></canvas>
+    <div id="status">皮肤预览加载中...</div>
+
+    <!-- skinview3d 是基于 three.js 的 Minecraft 皮肤 3D 渲染库，从 CDN 加载 -->
+    <script src="https://cdn.jsdelivr.net/npm/skinview3d@3.0.1/bundles/skinview3d.min.js"></script>
+    <script>
+        const SKIN_WIDTH = 240;
+        const SKIN_HEIGHT = 320;
+        // 默认 Steve 皮肤（crafatar.com 支持 CORS）
+        const STEVE_URL = "https://crafatar.com/skins/steve.png";
+
+        // 从查询参数读取皮肤路径，格式：SkinPreview.html?skin=file:///C:/path/to/skin.png
+        const params = new URLSearchParams(location.search);
+        const skinUrl = params.get("skin");
+
+        let skinViewer = null;
+
+        function showError(msg) {
+            const status = document.getElementById("status");
+            status.textContent = msg;
+            status.style.display = "block";
+            document.getElementById("skin_container").style.display = "none";
+        }
+
+        function initViewer(url) {
+            if (typeof skinview3d === "undefined") {
+                showError("3D 预览库加载失败，请检查网络");
+                return;
+            }
+            try {
+                if (skinViewer) {
+                    skinViewer.dispose();
+                    skinViewer = null;
+                }
+                skinViewer = new skinview3d.SkinViewer({
+                    canvas: document.getElementById("skin_container"),
+                    width: SKIN_WIDTH,
+                    height: SKIN_HEIGHT
+                });
+                // 启用鼠标拖动旋转，禁用缩放和平移
+                skinViewer.controls.enableRotate = true;
+                skinViewer.controls.enableZoom = false;
+                skinViewer.controls.enablePan = false;
+                // 待机动画（轻微呼吸效果）
+                skinViewer.animation = new skinview3d.IdleAnimation();
+                // 加载皮肤，失败时回退到 Steve
+                skinViewer.loadSkin(url).catch(err => {
+                    console.error("皮肤加载失败：", err);
+                    if (url !== STEVE_URL) {
+                        console.log("回退到默认 Steve 皮肤");
+                        initViewer(STEVE_URL);
+                    } else {
+                        showError("皮肤加载失败，请检查网络");
+                    }
+                });
+            } catch (e) {
+                console.error(e);
+                showError("3D 预览初始化失败：" + e.message);
+            }
+        }
+
+        window.addEventListener("DOMContentLoaded", () => {
+            initViewer(skinUrl || STEVE_URL);
+        });
+    </script>
+</body>
+</html>

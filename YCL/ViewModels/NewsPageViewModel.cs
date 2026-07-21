@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,7 +10,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using YCL.Core.Download;
 using YCL.Core.Utils;
+using YCL.Models;
 using YCL.Models.Versions;
+using YCL.Services;
 
 namespace YCL.ViewModels
 {
@@ -17,14 +20,30 @@ namespace YCL.ViewModels
     /// 新闻页 ViewModel：展示 Minecraft 版本动态资讯。
     /// 数据来源是 <see cref="IVersionManifestService"/> 拉取的官方版本清单——
     /// 把最近的版本发布记录当成"新闻"展示给用户。
+    /// 同时根据 <see cref="HomepageType"/> 配置在顶部显示主页内容：
+    /// Preset=内置预设（版本动态），Online=从 URL 拉取，Local=从本地 HTML/图片文件加载。
     /// </summary>
     public partial class NewsPageViewModel : ViewModelBase
     {
         private readonly IVersionManifestService _manifestService;
+        private readonly IConfigService _configService;
+        private readonly INavigationService _navigationService;
 
-        public NewsPageViewModel(IVersionManifestService manifestService)
+        public NewsPageViewModel(
+            IVersionManifestService manifestService,
+            IConfigService configService,
+            INavigationService navigationService)
         {
             _manifestService = manifestService;
+            _configService = configService;
+            _navigationService = navigationService;
+
+            // 从配置初始化主页相关属性
+            var config = _configService.Current;
+            _homepageType = config.HomepageType;
+            _homepageUrl = config.HomepageUrl;
+            _homepageLocalPath = config.HomepageLocalPath;
+            UpdateLocalFileUri();
 
             // 构造完成后自动刷新一次（异步 fire-and-forget，方法内部已捕获异常）
             _ = RefreshCommand.ExecuteAsync(null);
@@ -145,6 +164,144 @@ namespace YCL.ViewModels
             if (DateTime.TryParse(iso8601, null, DateTimeStyles.RoundtripKind, out var dt))
                 return dt;
             return DateTime.MinValue;
+        }
+
+        // ================================================================
+        // 主页设置（PCL 全部主页支持）
+        // ================================================================
+
+        /// <summary>主页类型（预设 / 联网 / 本地），从 AppConfig 读取</summary>
+        [ObservableProperty]
+        private HomepageType _homepageType;
+
+        /// <summary>联网主页 URL（HomepageType=Online 时使用）</summary>
+        [ObservableProperty]
+        private string _homepageUrl;
+
+        /// <summary>本地主页文件路径（HomepageType=Local 时使用）</summary>
+        [ObservableProperty]
+        private string _homepageLocalPath;
+
+        /// <summary>本地主页文件的 file:// URI（仅 Local 模式有值，供 Image 或 WebView2 显示）</summary>
+        [ObservableProperty]
+        private string? _localFileUri;
+
+        /// <summary>是否已配置主页（始终为 true，因为默认 Preset 模式下也有内置预设）</summary>
+        public bool HasHomepage => true;
+
+        /// <summary>主页是否为 URL 模式（HomepageType=Online）</summary>
+        public bool IsHomepageUrl => HomepageType == HomepageType.Online;
+
+        /// <summary>主页是否为预设模式（HomepageType=Preset）</summary>
+        public bool IsHomepagePreset => HomepageType == HomepageType.Preset;
+
+        /// <summary>主页是否为本地模式（HomepageType=Local）</summary>
+        public bool IsHomepageLocal => HomepageType == HomepageType.Local;
+
+        /// <summary>本地文件是否为图片（仅 Local 模式且文件扩展名匹配时为 true）</summary>
+        public bool IsLocalImage => IsHomepageLocal && IsImageFile(HomepageLocalPath);
+
+        /// <summary>本地文件是否为 HTML（仅 Local 模式且文件扩展名匹配时为 true）</summary>
+        public bool IsLocalHtml => IsHomepageLocal && IsHtmlFile(HomepageLocalPath);
+
+        /// <summary>主页配置描述（用于 UI 显示当前主页来源）</summary>
+        public string HomepageConfig => HomepageType switch
+        {
+            HomepageType.Preset => "预设（版本动态）",
+            HomepageType.Online => string.IsNullOrWhiteSpace(HomepageUrl) ? "联网（未配置 URL）" : $"联网：{HomepageUrl}",
+            HomepageType.Local => string.IsNullOrWhiteSpace(HomepageLocalPath) ? "本地（未选择文件）" : $"本地：{Path.GetFileName(HomepageLocalPath)}",
+            _ => "未知"
+        };
+
+        partial void OnHomepageTypeChanged(HomepageType value)
+        {
+            UpdateLocalFileUri();
+            RefreshHomepageDerived();
+        }
+
+        partial void OnHomepageUrlChanged(string value)
+        {
+            RefreshHomepageDerived();
+        }
+
+        partial void OnHomepageLocalPathChanged(string value)
+        {
+            UpdateLocalFileUri();
+            RefreshHomepageDerived();
+        }
+
+        /// <summary>刷新主页相关的派生属性通知（让 UI 重新读取计算属性）</summary>
+        private void RefreshHomepageDerived()
+        {
+            OnPropertyChanged(nameof(IsHomepageUrl));
+            OnPropertyChanged(nameof(IsHomepagePreset));
+            OnPropertyChanged(nameof(IsHomepageLocal));
+            OnPropertyChanged(nameof(IsLocalImage));
+            OnPropertyChanged(nameof(IsLocalHtml));
+            OnPropertyChanged(nameof(HomepageConfig));
+        }
+
+        /// <summary>根据当前 HomepageType 和 HomepageLocalPath 更新 LocalFileUri</summary>
+        private void UpdateLocalFileUri()
+        {
+            if (HomepageType == HomepageType.Local && File.Exists(HomepageLocalPath))
+            {
+                try
+                {
+                    LocalFileUri = new Uri(HomepageLocalPath).AbsoluteUri;
+                }
+                catch
+                {
+                    LocalFileUri = null;
+                }
+            }
+            else
+            {
+                LocalFileUri = null;
+            }
+        }
+
+        /// <summary>判断文件是否为图片（按扩展名）</summary>
+        private static bool IsImageFile(string? path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            var ext = Path.GetExtension(path).ToLowerInvariant();
+            return ext == ".png" || ext == ".jpg" || ext == ".jpeg" ||
+                   ext == ".bmp" || ext == ".gif" || ext == ".webp";
+        }
+
+        /// <summary>判断文件是否为 HTML（按扩展名）</summary>
+        private static bool IsHtmlFile(string? path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            var ext = Path.GetExtension(path).ToLowerInvariant();
+            return ext == ".html" || ext == ".htm";
+        }
+
+        /// <summary>在浏览器中打开主页（Online 模式打开 HomepageUrl，未配置时打开 Minecraft 官网）</summary>
+        [RelayCommand]
+        private void OpenHomepage()
+        {
+            var url = string.IsNullOrWhiteSpace(HomepageUrl) ? "https://www.minecraft.net/" : HomepageUrl;
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = url,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("打开主页失败", ex);
+            }
+        }
+
+        /// <summary>跳转到设置页（让用户配置主页类型与内容）</summary>
+        [RelayCommand]
+        private void GoToSettings()
+        {
+            _navigationService.NavigateTo("Settings");
         }
     }
 

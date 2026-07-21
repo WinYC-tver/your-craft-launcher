@@ -4,7 +4,7 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
-      xmlns:views="clr-namespace:YCL.Views"
+      xmlns:models="clr-namespace:YCL.Models;assembly=YCL.Models"
       mc:Ignorable="d"
       d:DesignHeight="640" d:DesignWidth="1040">
     <UserControl.Resources>
@@ -21,226 +21,274 @@
             </Style.Triggers>
         </Style>
 
-        <!-- 整体进度条样式：OverallPercent = -1 时不定进度 -->
-        <Style x:Key="OverallProgressBarStyle" TargetType="ProgressBar">
-            <Setter Property="IsIndeterminate" Value="False"/>
+        <!-- 左侧分类列表项样式 -->
+        <Style x:Key="CategoryListBoxItemStyle" TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+
+        <!-- 卡片中"详情"按钮样式 -->
+        <Style x:Key="CardDetailButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Padding" Value="12,4"/>
+            <Setter Property="Margin" Value="0,0,4,0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="MinWidth" Value="64"/>
+        </Style>
+
+        <!-- 卡片中"收藏"按钮样式：根据 IsFavorite 切换文字 -->
+        <Style x:Key="FavoriteButtonTextStyle" TargetType="TextBlock">
+            <Setter Property="Text" Value="☆ 收藏"/>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding OverallPercent}" Value="-1">
-                    <Setter Property="IsIndeterminate" Value="True"/>
+                <DataTrigger Binding="{Binding IsFavorite}" Value="True">
+                    <Setter Property="Text" Value="★ 已收藏"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
 
-        <!-- 单文件进度条样式 -->
-        <Style x:Key="FileProgressBarStyle" TargetType="ProgressBar">
+        <!-- 进度条样式：DownloadPercent = -1 时不定进度 -->
+        <Style x:Key="DownloadProgressBarStyle" TargetType="ProgressBar">
             <Setter Property="IsIndeterminate" Value="False"/>
             <Setter Property="Minimum" Value="0"/>
             <Setter Property="Maximum" Value="100"/>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Percent}" Value="-1">
+                <DataTrigger Binding="{Binding DetailVM.DownloadPercent}" Value="-1">
                     <Setter Property="IsIndeterminate" Value="True"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
 
-        <!-- 文件项状态文字样式 -->
-        <Style x:Key="FileStatusTextStyle" TargetType="TextBlock">
-            <Setter Property="Opacity" Value="0.7"/>
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsCompleted}" Value="True">
-                    <Setter Property="Foreground" Value="#FF4CAF50"/>
-                    <Setter Property="Opacity" Value="1"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsFailed}" Value="True">
-                    <Setter Property="Foreground" Value="#FFD6454A"/>
-                    <Setter Property="Opacity" Value="1"/>
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
+        <!-- 分组后的分类列表视图 -->
+        <CollectionViewSource x:Key="GroupedCategories" Source="{Binding CategoryItems}">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="Group"/>
+            </CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
     </UserControl.Resources>
 
-    <!-- 五大 Tab：游戏下载 / 整合包 / 模组 / 资源包 / 光影 -->
-    <TabControl Padding="0" Margin="0">
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- 顶部：标题 + 搜索框 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 主体：左侧分类 + 右侧内容区 -->
+            <RowDefinition Height="*"/>
+            <!-- 底部状态栏：下载源 + 线程数 -->
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
 
-        <!-- ============ Tab 1：游戏下载 ============ -->
-        <TabItem Header="游戏下载">
-            <Grid Margin="8,8,8,8">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
+        <!-- ============ 顶部：标题 + 搜索框 ============ -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="16,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-                <!-- 顶部：下载源 + 刷新按钮 -->
-                <Grid Grid.Row="0" Margin="16,8,16,4">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
+                <!-- 标题 -->
+                <TextBlock Grid.Column="0" Text="下载资源" FontSize="22" FontWeight="SemiBold"
+                           VerticalAlignment="Center" Margin="0,0,16,0"/>
 
-                    <TextBlock Grid.Column="0" Text="游戏版本下载" FontSize="24" FontWeight="SemiBold"
-                               VerticalAlignment="Center"/>
+                <!-- 搜索框 -->
+                <TextBox Grid.Column="1"
+                         Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         MinHeight="34" MaxWidth="600"
+                         VerticalContentAlignment="Center" Padding="10,4"
+                         HorizontalAlignment="Stretch">
+                    <ui:ControlHelper.PlaceholderText>搜索模组、整合包、资源包...</ui:ControlHelper.PlaceholderText>
+                </TextBox>
 
-                    <TextBlock Grid.Column="1" Text="下载源：" VerticalAlignment="Center"
-                               Opacity="0.6" Margin="0,0,4,0"/>
-                    <TextBlock Grid.Column="2" Text="{Binding DownloadSourceDisplay}"
-                               VerticalAlignment="Center" FontWeight="SemiBold" Opacity="0.85"
-                               Margin="0,0,12,0"/>
+                <!-- 下载设置按钮 -->
+                <Button Grid.Column="2" Content="⚙ 下载设置"
+                        Command="{Binding OpenDownloadSettingsCommand}"
+                        Padding="12,4" MinWidth="100" Margin="8,0,0,0"
+                        VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
 
-                    <Button Grid.Column="3" Content="刷新版本清单"
-                            Command="{Binding RefreshManifestCommand}"
-                            Padding="12,4" MinWidth="100"/>
-                </Grid>
+        <!-- ============ 主体：左右分栏 ============ -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-                <!-- 版本输入 + 控制按钮 -->
-                <StackPanel Grid.Row="1" Margin="16,4,16,8">
-                    <!-- 提示信息 -->
-                    <Border Style="{StaticResource HintBorderStyle}"
-                            Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
-                            CornerRadius="6" Padding="12,8" Margin="0,0,0,8">
-                        <TextBlock Text="{Binding HintMessage}" TextWrapping="Wrap" Opacity="0.8"/>
-                    </Border>
+            <!-- ============ 左侧分类列表 ============ -->
+            <Border Grid.Column="0"
+                    Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                    BorderThickness="0,0,1,0">
+                <ListBox ItemsSource="{Binding Source={StaticResource GroupedCategories}}"
+                         SelectedIndex="{Binding SelectedCategoryIndex, Mode=TwoWay}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Padding="0"
+                         ItemContainerStyle="{StaticResource CategoryListBoxItemStyle}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListBox.GroupStyle>
+                        <GroupStyle>
+                            <GroupStyle.HeaderTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}"
+                                               FontWeight="SemiBold" FontSize="12"
+                                               Opacity="0.6"
+                                               Margin="16,12,16,4"/>
+                                </DataTemplate>
+                            </GroupStyle.HeaderTemplate>
+                        </GroupStyle>
+                    </ListBox.GroupStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Icon}" FontSize="16"
+                                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
 
-                    <!-- 版本 id 输入行 -->
-                    <Grid Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
+            <!-- ============ 右侧内容区：搜索结果 + 详情页叠层 ============ -->
+            <Grid Grid.Column="1">
+                <!-- 搜索结果列表 -->
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <!-- 状态文字 + 搜索按钮 -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- 提示信息 -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- 卡片列表 -->
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Column="0" Text="版本 id：" VerticalAlignment="Center"
-                                   FontWeight="SemiBold" Margin="0,0,8,0"/>
-                        <TextBox Grid.Column="1" Text="{Binding VersionIdInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 MinHeight="32" VerticalContentAlignment="Center" Padding="8,4"
-                                 IsEnabled="{Binding CanStartDownload}"/>
-                        <Button Grid.Column="2" Content="开始下载"
-                                Command="{Binding StartDownloadCommand}"
-                                FontSize="14" FontWeight="SemiBold"
-                                Padding="20,4" MinWidth="100" Margin="8,0,0,0"/>
-                    </Grid>
-
-                    <!-- 控制按钮行 -->
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                        <Button Content="暂停" Command="{Binding PauseCommand}"
-                                Padding="16,4" MinWidth="80" Margin="0,0,8,0"/>
-                        <Button Content="继续" Command="{Binding ResumeCommand}"
-                                Padding="16,4" MinWidth="80" Margin="0,0,8,0"/>
-                        <Button Content="取消" Command="{Binding CancelCommand}"
-                                Padding="16,4" MinWidth="80"/>
-                    </StackPanel>
-                </StackPanel>
-
-                <!-- 整体进度区 -->
-                <StackPanel Grid.Row="2" Margin="16,4,16,8">
-                    <Grid Margin="0,0,0,4">
+                    <!-- 状态文字 + 搜索按钮 -->
+                    <Grid Grid.Row="0" Margin="16,8,16,4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
                         <TextBlock Grid.Column="0" Text="{Binding StatusText}"
-                                   VerticalAlignment="Center" Opacity="0.85" TextWrapping="Wrap"/>
-                        <TextBlock Grid.Column="1" VerticalAlignment="Center" Opacity="0.7" Margin="12,0,0,0">
-                            <Run Text="进度："/>
-                            <Run Text="{Binding OverallPercent, Mode=OneWay, StringFormat=F1}"/>
-                            <Run Text="%"/>
-                        </TextBlock>
+                                   VerticalAlignment="Center" Opacity="0.7"/>
+                        <Button Grid.Column="1" Content="🔍 搜索"
+                                Command="{Binding SearchCommand}"
+                                Padding="16,4" MinWidth="80">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSearching}" Value="True">
+                                            <Setter Property="IsEnabled" Value="False"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                     </Grid>
 
-                    <ProgressBar Height="8" Margin="0,2,0,8"
-                                 Style="{StaticResource OverallProgressBarStyle}"
-                                 Minimum="0" Maximum="100"
-                                 Value="{Binding OverallPercent, Mode=OneWay}"/>
-
-                    <Grid Margin="0,0,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Opacity="0.7">
-                            <Run Text="文件："/>
-                            <Run Text="{Binding CompletedFiles, Mode=OneWay}"/>
-                            <Run Text=" / "/>
-                            <Run Text="{Binding TotalFiles, Mode=OneWay}"/>
-                            <Run Text="（失败 "/>
-                            <Run Text="{Binding FailedFiles, Mode=OneWay}"/>
-                            <Run Text="）"/>
-                        </TextBlock>
-
-                        <TextBlock Grid.Column="1" VerticalAlignment="Center" Opacity="0.7" Margin="16,0,0,0">
-                            <Run Text="已下载："/>
-                            <Run Text="{Binding DownloadedBytesDisplay, Mode=OneWay}"/>
-                            <Run Text=" / "/>
-                            <Run Text="{Binding TotalBytesDisplay, Mode=OneWay}"/>
-                        </TextBlock>
-
-                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Opacity="0.7" Margin="16,0,0,0">
-                            <Run Text="速度："/>
-                            <Run Text="{Binding SpeedDisplay, Mode=OneWay}"/>
-                        </TextBlock>
-                    </Grid>
-                </StackPanel>
-
-                <!-- 下载文件列表 -->
-                <Grid Grid.Row="3" Margin="16,4,16,12">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Row="0" Text="下载文件列表" FontSize="14" FontWeight="SemiBold"
-                               Opacity="0.8" Margin="0,0,0,4"/>
-
-                    <Border Grid.Row="1"
+                    <!-- 提示信息 -->
+                    <Border Grid.Row="1" Style="{StaticResource HintBorderStyle}"
                             Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
-                            CornerRadius="4"
+                            CornerRadius="6" Padding="12,8" Margin="16,4,16,8">
+                        <TextBlock Text="{Binding HintMessage}" TextWrapping="Wrap" Opacity="0.8"/>
+                    </Border>
+
+                    <!-- 卡片列表 -->
+                    <Border Grid.Row="2" Margin="16,4,16,16"
+                            Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                            CornerRadius="6"
                             BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
                             BorderThickness="1">
-                        <ListBox ItemsSource="{Binding ActiveFiles}"
+                        <ListBox ItemsSource="{Binding SearchResults}"
                                  Background="Transparent"
                                  BorderThickness="0"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                 Margin="2">
+                                 Margin="2"
+                                 HorizontalContentAlignment="Stretch">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="2"/>
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Margin="2,3" Padding="8,6"
+                                    <Border Margin="2,3" Padding="12,10"
                                             Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
-                                            CornerRadius="4">
+                                            CornerRadius="6">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="Auto"/>
-                                            </Grid.RowDefinitions>
 
-                                            <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal"
-                                                        Margin="0,0,8,4">
-                                                <TextBlock Text="{Binding FileName}" FontWeight="SemiBold"
-                                                           TextTrimming="CharacterEllipsis" MaxWidth="400"/>
-                                                <TextBlock Text="{Binding Category, StringFormat='  [{0}]'}"
-                                                           Opacity="0.5" FontSize="11" VerticalAlignment="Center"
-                                                           Margin="6,0,0,0"/>
+                                            <!-- 左侧：图标 -->
+                                            <Border Grid.Column="0" Width="48" Height="48"
+                                                    Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                                                    CornerRadius="6" Margin="0,0,12,0"
+                                                    VerticalAlignment="Center">
+                                                <Grid>
+                                                    <TextBlock Text="📦" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IconUrl}" Value="{x:Null}">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IconUrl}" Value="">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <Image Source="{Binding IconUrl}" Stretch="Uniform" Margin="2"/>
+                                                </Grid>
+                                            </Border>
+
+                                            <!-- 中间：名称、描述、下载量、作者 -->
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                                               FontSize="14" VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis" MaxWidth="380"/>
+                                                    <Border Background="#FF0078D7" CornerRadius="3"
+                                                            Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding SourceDisplay}"
+                                                                   FontSize="11" Foreground="White"/>
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Description}" Opacity="0.6"
+                                                           FontSize="11" Margin="0,4,0,0"
+                                                           TextTrimming="CharacterEllipsis" MaxWidth="500"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0" Opacity="0.6">
+                                                    <TextBlock Text="下载：" FontSize="11"/>
+                                                    <TextBlock Text="{Binding DownloadCountDisplay}" FontSize="11" Margin="2,0,8,0"/>
+                                                    <TextBlock Text="作者：" FontSize="11"/>
+                                                    <TextBlock Text="{Binding Author}" FontSize="11" Margin="2,0,0,0"/>
+                                                </StackPanel>
                                             </StackPanel>
 
-                                            <TextBlock Grid.Row="0" Grid.Column="1"
-                                                       Text="{Binding SpeedDisplay}"
-                                                       Style="{StaticResource FileStatusTextStyle}"
-                                                       VerticalAlignment="Center"/>
-
-                                            <ProgressBar Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
-                                                         Height="3"
-                                                         Style="{StaticResource FileProgressBarStyle}"
-                                                         Value="{Binding Percent, Mode=OneWay}"/>
+                                            <!-- 右侧：详情按钮 -->
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+                                                <Button Content="详情"
+                                                        Style="{StaticResource CardDetailButtonStyle}"
+                                                        Command="{Binding DataContext.ShowDetailCommand,
+                                                            RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip="查看资源详情"/>
+                                            </StackPanel>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -248,112 +296,58 @@
                         </ListBox>
                     </Border>
                 </Grid>
-            </Grid>
-        </TabItem>
 
-        <!-- ============ Tab 2：整合包 ============ -->
-        <TabItem Header="整合包">
-            <Grid Margin="24,16,24,16">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
+                <!-- ============ 资源详情页叠层 ============ -->
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsDetailVisible}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
 
-                <!-- 标题 + 导入按钮 -->
-                <Grid Grid.Row="0" Margin="0,0,0,16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
+                    <Grid.Background>
+                        <DynamicResource ResourceKey="SystemControlBackgroundBaseLowBrush"/>
+                    </Grid.Background>
 
-                    <TextBlock Grid.Column="0" Text="整合包导入" FontSize="24" FontWeight="SemiBold"
-                               VerticalAlignment="Center"/>
-
-                    <Button Grid.Column="1" Content="导入整合包"
-                            Command="{Binding ImportModpackCommand}"
-                            Padding="16,8" MinWidth="120">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsImportingModpack}" Value="True">
-                                        <Setter Property="IsEnabled" Value="False"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
+                    <!-- 用 ContentControl 绑定到 DetailVM，App.xaml 中注册的 DataTemplate 会自动渲染为 ResourceDetailPage -->
+                    <ContentControl Content="{Binding DetailVM}" Margin="0"/>
                 </Grid>
-
-                <!-- 状态信息 -->
-                <Border Grid.Row="1"
-                        Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
-                        CornerRadius="8" Padding="24,16">
-                    <StackPanel>
-                        <TextBlock Text="{Binding ModpackStatus}" TextWrapping="Wrap" FontSize="14"
-                                   Opacity="0.85"/>
-                        <TextBlock Text="支持格式：CurseForge 整合包 (.zip)、Modrinth 整合包 (.mrpack)"
-                                   Opacity="0.5" FontSize="12" Margin="0,16,0,0"
-                                   TextWrapping="Wrap"/>
-                    </StackPanel>
-                </Border>
             </Grid>
-        </TabItem>
+        </Grid>
 
-        <!-- ============ Tab 3：模组 ============ -->
-        <TabItem Header="模组">
-            <!-- 嵌入模组管理页面，DataContext 绑定到 DownloadPageViewModel.ModPageVM -->
-            <views:ModPage DataContext="{Binding ModPageVM}"/>
-        </TabItem>
+        <!-- ============ 底部状态栏 ============ -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-        <!-- ============ Tab 4：资源包 ============ -->
-        <TabItem Header="资源包">
-            <!-- 嵌入资源中心页面，DataContext 绑定到 DownloadPageViewModel.ResourcePageVM -->
-            <views:ResourcePage DataContext="{Binding ResourcePageVM}"/>
-        </TabItem>
+                <!-- 当前下载源 -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
+                    <TextBlock Text="当前下载源：" Opacity="0.6" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding DownloadSourceDisplay}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                </StackPanel>
 
-        <!-- ============ Tab 5：光影 ============ -->
-        <TabItem Header="光影">
-            <Grid Margin="24,16,24,16">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-
-                <!-- 标题 + 刷新按钮 -->
-                <Grid Grid.Row="0" Margin="0,0,0,16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Grid.Column="0" Text="光影包管理" FontSize="24" FontWeight="SemiBold"
-                               VerticalAlignment="Center"/>
-
-                    <Button Grid.Column="1" Content="刷新列表"
-                            Command="{Binding RefreshShaderPacksCommand}"
-                            Padding="16,8" MinWidth="100"/>
-                </Grid>
-
-                <!-- 状态信息 -->
-                <TextBlock Grid.Row="1" Text="{Binding ShaderPackStatus}"
-                           Opacity="0.7" FontSize="13" Margin="0,0,0,12"
-                           TextWrapping="Wrap"/>
-
-                <!-- 光影包列表 -->
-                <Border Grid.Row="2"
-                        Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
-                        CornerRadius="4"
-                        BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
-                        BorderThickness="1">
-                    <ListBox ItemsSource="{Binding ShaderPacks}"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             ScrollViewer.VerticalScrollBarVisibility="Auto"
-                             Margin="2"/>
-                </Border>
+                <!-- 下载线程数 + 提示 -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="线程数：" Opacity="0.6" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding DownloadThreadCount, Mode=OneWay}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <Border Background="#FF0078D7" CornerRadius="3" Padding="8,2" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="⚡ 高速下载引擎（多线程分块）" FontSize="11" Foreground="White"/>
+                    </Border>
+                </StackPanel>
             </Grid>
-        </TabItem>
-
-    </TabControl>
+        </Border>
+    </Grid>
 </UserControl>

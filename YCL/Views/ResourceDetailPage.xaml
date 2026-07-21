@@ -1,0 +1,297 @@
+<UserControl x:Class="YCL.Views.ResourceDetailPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
+      mc:Ignorable="d"
+      d:DesignHeight="720" d:DesignWidth="1040">
+    <UserControl.Resources>
+        <!-- 提示信息 Border 样式：HintMessage 为 null 或空时折叠 -->
+        <Style x:Key="HintBorderStyle" TargetType="Border">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HintMessage}" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding HintMessage}" Value="">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 下载进度区样式：IsDownloading=false 时折叠 -->
+        <Style x:Key="DownloadProgressStyle" TargetType="StackPanel">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsDownloading}" Value="False">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- "立即获取"按钮样式（微软商店风格：accent 主题色、圆角、大号） -->
+        <Style x:Key="GetButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Padding" Value="32,10"/>
+            <Setter Property="MinWidth" Value="160"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="Background" Value="#FF0078D7"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Opacity" Value="0.8"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 标签 Border 样式 -->
+        <Style x:Key="TagBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="#FF0078D7"/>
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="Padding" Value="8,2"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- 进度条样式：DownloadPercent=-1 时不定进度 -->
+        <Style x:Key="ProgressBarStyle" TargetType="ProgressBar">
+            <Setter Property="IsIndeterminate" Value="False"/>
+            <Setter Property="Minimum" Value="0"/>
+            <Setter Property="Maximum" Value="100"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DownloadPercent}" Value="-1">
+                    <Setter Property="IsIndeterminate" Value="True"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- 顶部 Banner：大图 + 名称 + 元信息 + 立即获取按钮 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 详细描述 + 元数据 -->
+            <RowDefinition Height="*"/>
+            <!-- 底部"立即获取"按钮栏 -->
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ============ 顶部 Banner ============ -->
+        <Grid Grid.Row="0" Margin="24,16,24,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 左侧：大图标 -->
+            <Border Grid.Column="0" Width="160" Height="160"
+                    Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                    CornerRadius="12" Margin="0,0,24,0"
+                    VerticalAlignment="Top">
+                <Grid>
+                    <TextBlock Text="📦" FontSize="80" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.4">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DetailLogoUrl}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding DetailLogoUrl}" Value="">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <Image Source="{Binding DetailLogoUrl}" Stretch="Uniform" Margin="12"/>
+                </Grid>
+            </Border>
+
+            <!-- 右侧：名称 + 元信息 -->
+            <StackPanel Grid.Column="1" VerticalAlignment="Top">
+                <!-- 返回按钮 -->
+                <Button Content="← 返回列表"
+                        Command="{Binding BackCommand}"
+                        Padding="8,4" MinWidth="80"
+                        HorizontalAlignment="Left" Margin="0,0,0,12"/>
+
+                <!-- 资源名（大字） -->
+                <TextBlock Text="{Binding DetailName}" FontSize="32" FontWeight="Bold"
+                           TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                <!-- 标签栏 -->
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                    <Border Style="{StaticResource TagBorderStyle}">
+                        <TextBlock Text="{Binding DetailKindDisplay}" FontSize="12" Foreground="White"/>
+                    </Border>
+                    <Border Style="{StaticResource TagBorderStyle}">
+                        <TextBlock Text="{Binding DetailSource}" FontSize="12" Foreground="White"/>
+                    </Border>
+                </StackPanel>
+
+                <!-- 元信息：作者、下载量、更新时间 -->
+                <StackPanel Orientation="Horizontal" Opacity="0.75" Margin="0,0,0,8">
+                    <TextBlock Text="作者：" FontSize="13"/>
+                    <TextBlock Text="{Binding DetailAuthor}" FontSize="13" Margin="2,0,16,0"/>
+                    <TextBlock Text="下载量：" FontSize="13"/>
+                    <TextBlock Text="{Binding DetailDownloadCount}" FontSize="13" Margin="2,0,16,0"/>
+                    <TextBlock Text="更新：" FontSize="13"/>
+                    <TextBlock Text="{Binding DetailUpdatedTime}" FontSize="13" Margin="2,0,0,0"/>
+                </StackPanel>
+
+                <!-- 文件信息：大小、游戏版本、加载器 -->
+                <StackPanel Orientation="Horizontal" Opacity="0.75" Margin="0,0,0,8">
+                    <TextBlock Text="文件大小：" FontSize="13"/>
+                    <TextBlock Text="{Binding DetailFileSize}" FontSize="13" Margin="2,0,16,0"/>
+                    <TextBlock Text="适用版本：" FontSize="13"/>
+                    <TextBlock Text="{Binding DetailGameVersion}" FontSize="13" Margin="2,0,16,0"/>
+                    <TextBlock Text="加载器：" FontSize="13"/>
+                    <TextBlock Text="{Binding DetailLoader}" FontSize="13" Margin="2,0,0,0"/>
+                </StackPanel>
+
+                <!-- 收藏按钮 -->
+                <Button Command="{Binding ToggleFavoriteCommand}"
+                        Padding="12,4" MinWidth="100" Margin="0,8,0,0"
+                        HorizontalAlignment="Left">
+                    <TextBlock>
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="☆ 收藏"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsFavorite}" Value="True">
+                                        <Setter Property="Text" Value="★ 已收藏"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- ============ 详细描述 ============ -->
+        <ScrollViewer Grid.Row="1" Margin="24,8,24,16"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <!-- 画廊区域占位（暂未实现截图功能） -->
+                <Border Height="180"
+                        Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                        CornerRadius="8" Margin="0,0,0,16">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <TextBlock Text="🖼️" FontSize="48" HorizontalAlignment="Center" Opacity="0.3"/>
+                        <TextBlock Text="暂无截图" FontSize="13" HorizontalAlignment="Center" Opacity="0.5" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 详细描述 -->
+                <TextBlock Text="详细描述" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <Border Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                        CornerRadius="6" Padding="16,12">
+                    <TextBlock Text="{Binding DetailDescription}"
+                               TextWrapping="Wrap" FontSize="14" Opacity="0.85"/>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ============ 底部状态栏：进度 + 立即获取按钮 ============ -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="24,12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- 下载进度区 -->
+                <StackPanel Grid.Row="0" Style="{StaticResource DownloadProgressStyle}" Margin="0,0,0,8">
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Text="{Binding StatusText}"
+                                   VerticalAlignment="Center" Opacity="0.85"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Grid.Column="1" VerticalAlignment="Center" Opacity="0.7" Margin="12,0,0,0">
+                            <Run Text="进度："/>
+                            <Run Text="{Binding DownloadPercent, Mode=OneWay, StringFormat=F1}"/>
+                            <Run Text="%"/>
+                        </TextBlock>
+                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Opacity="0.7" Margin="12,0,0,0">
+                            <Run Text="速度："/>
+                            <Run Text="{Binding DownloadSpeedDisplay, Mode=OneWay}"/>
+                        </TextBlock>
+                    </Grid>
+
+                    <ProgressBar Height="8" Margin="0,2,0,8"
+                                 Style="{StaticResource ProgressBarStyle}"
+                                 Value="{Binding DownloadPercent, Mode=OneWay}"/>
+
+                    <Button Content="取消下载"
+                            Command="{Binding CancelDownloadCommand}"
+                            Padding="12,3" MinWidth="80" HorizontalAlignment="Left"/>
+                </StackPanel>
+
+                <!-- 立即获取按钮 + 提示 -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal">
+                    <Button Content="立即获取"
+                            Command="{Binding GetResourceCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource GetButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsDownloading}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <TextBlock Text="点击下载或安装此资源"
+                               Opacity="0.5" FontSize="12"
+                               VerticalAlignment="Center" Margin="16,0,0,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 提示信息浮层 -->
+        <Border Style="{StaticResource HintBorderStyle}"
+                Grid.Row="2"
+                Background="#FF0078D7"
+                CornerRadius="6" Padding="12,8"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                Margin="24,0,24,80">
+            <TextBlock Text="{Binding HintMessage}" TextWrapping="Wrap" Foreground="White" FontSize="12"/>
+        </Border>
+    </Grid>
+</UserControl>

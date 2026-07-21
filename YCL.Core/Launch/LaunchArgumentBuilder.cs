@@ -154,7 +154,9 @@ namespace YCL.Core.Launch
 
         /// <summary>
         /// 构建 JVM 参数列表。
-        /// 顺序：内存参数 → 额外注入参数（authlib-injector）→ 用户自定义参数 → 版本自带 jvm 参数 → 日志配置 → natives 路径 → classpath
+        /// 顺序（HMCL 风格）：
+        /// 内存参数 → 额外注入参数（authlib-injector）→ 版本自带 jvm 参数 → 日志配置 → natives 路径 → 用户自定义参数 → classpath
+        /// 用户自定义参数放在最后（在版本自带参数之后），避免被版本自带参数覆盖。
         /// </summary>
         private List<string> BuildJvmArguments(
             ResolvedVersion resolved,
@@ -175,13 +177,6 @@ namespace YCL.Core.Launch
             if (extraJvmArguments != null)
             {
                 jvmArgs.AddRange(extraJvmArguments);
-            }
-
-            // 1.6 用户自定义 JVM 参数（从设置页读取，空格分隔，如 "-XX:+UseG1GC -XX:MaxGCPauseMillis=50"）
-            if (!string.IsNullOrWhiteSpace(userExtraJvmArgs))
-            {
-                var userArgs = userExtraJvmArgs.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                jvmArgs.AddRange(userArgs);
             }
 
             // 2. 版本自带的 jvm 参数（应用 rules 过滤 + 替换占位符）
@@ -219,7 +214,15 @@ namespace YCL.Core.Launch
                 jvmArgs.Add($"-Djava.library.path={nativesDir}");
             }
 
-            // 5. classpath：-cp <所有 jar 路径用分号连接>
+            // 5. 用户自定义 JVM 参数（从设置页读取，空格分隔，如 "-XX:+UseG1GC -XX:MaxGCPauseMillis=50"）
+            //    HMCL 风格：放在版本自带参数之后、-cp 之前，确保用户配置不被覆盖且不影响 classpath
+            if (!string.IsNullOrWhiteSpace(userExtraJvmArgs))
+            {
+                var userArgs = userExtraJvmArgs.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                jvmArgs.AddRange(userArgs);
+            }
+
+            // 6. classpath：-cp <所有 jar 路径用分号连接>
             //    版本自带的 jvm 参数里通常已有 -cp ${classpath}，这里再确保一下
             if (!jvmArgs.Any(a => a == "-cp"))
             {

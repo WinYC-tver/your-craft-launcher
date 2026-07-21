@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -14,6 +15,7 @@ using YCL.Core.Java;
 using YCL.Core.Utils;
 using YCL.Core.Versions;
 using YCL.Services;
+using MessageBox = System.Windows.MessageBox;
 
 namespace YCL.ViewModels
 {
@@ -135,6 +137,81 @@ namespace YCL.ViewModels
             OnPropertyChanged(nameof(CurrentJavaPath));
             StatusMessage = $"已设为默认 Java：{java.DisplayName}";
             Logger.Info($"已设为默认 Java：{java.Path}");
+        }
+
+        /// <summary>
+        /// 自动选择 Java 命令：根据传入的版本 JSON 的 javaVersion.component 字段匹配最合适的 Java。
+        /// <para>
+        /// component 取值与最低版本要求（来自 Mojang 版本清单约定）：
+        /// <list type="bullet">
+        /// <item><c>java-runtime-gamma</c> → 需要 Java 21+</item>
+        /// <item><c>java-runtime-delta</c> → 需要 Java 17+</item>
+        /// <item><c>jre-legacy</c> → 需要 Java 8+</item>
+        /// </list>
+        /// </para>
+        /// 若 component 为 null/空/未知值，则直接选择已检测到的最新版本 Java。
+        /// 选中第一个符合要求的 Java（按版本降序），通过 SetAsCurrent 设为默认，并用 MessageBox 提示结果。
+        /// </summary>
+        /// <param name="component">版本 JSON 中 javaVersion.component 字段的值（可为 null）</param>
+        [RelayCommand]
+        private void AutoSelectJava(string? component)
+        {
+            if (Javas.Count == 0)
+            {
+                StatusMessage = "尚未检测到任何 Java，请先点击\"检测 Java\"或\"在线安装 Java\"。";
+                MessageBox.Show(
+                    "尚未检测到任何 Java，请先点击\"检测 Java\"或\"在线安装 Java\"。",
+                    "自动选择 Java",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            // 根据组件名确定最低版本要求；未知或未传时按 0 处理（选最新）
+            int minVersion = component switch
+            {
+                "java-runtime-gamma" => 21,
+                "java-runtime-delta" => 17,
+                "jre-legacy" => 8,
+                _ => 0
+            };
+
+            JavaInfo? selected;
+            if (minVersion > 0)
+            {
+                // 在符合版本要求的 Java 中选最新（版本号最大的）
+                selected = Javas
+                    .Where(j => j.Version >= minVersion)
+                    .OrderByDescending(j => j.Version)
+                    .FirstOrDefault();
+            }
+            else
+            {
+                // 没有传入版本信息：选择最新版本的 Java
+                selected = Javas.OrderByDescending(j => j.Version).FirstOrDefault();
+            }
+
+            if (selected == null)
+            {
+                var need = minVersion > 0 ? $"（需要 Java {minVersion}+）" : "";
+                StatusMessage = $"未找到符合要求的 Java{need}，请安装后重试。";
+                MessageBox.Show(
+                    $"未找到符合要求的 Java{need}，请点击\"在线安装 Java\"安装后重试。",
+                    "自动选择 Java",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            // 复用 SetAsCurrent 完成默认 Java 设置
+            SetAsCurrent(selected);
+
+            var componentHint = string.IsNullOrEmpty(component) ? "（未指定版本要求，已选最新）" : $"（component={component}）";
+            MessageBox.Show(
+                $"已自动选择：{selected.DisplayName}\n路径：{selected.Path}\n{componentHint}",
+                "自动选择 Java",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
         }
 
         /// <summary>安装 Java 命令：弹对话框选择版本，下载安装</summary>
@@ -277,6 +354,31 @@ namespace YCL.ViewModels
                 IsInstalling = false;
                 _installCts?.Dispose();
                 _installCts = null;
+            }
+        }
+
+        /// <summary>
+        /// 在线安装 Java：打开 BellSoft（Liberica JDK）下载页面。
+        /// 对应规格 1.3：用户没有游戏所需 Java，或在 Java 管理界面点击"在线安装 Java"时调用。
+        /// </summary>
+        [RelayCommand]
+        private void InstallJavaOnline()
+        {
+            const string bellSoftUrl = "https://bell-sw.com/pages/downloads/?version=java-25&vtabs=true";
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = bellSoftUrl,
+                    UseShellExecute = true
+                });
+                Logger.Info($"已打开 BellSoft Java 下载页面：{bellSoftUrl}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("打开 BellSoft Java 下载页面失败", ex);
+                MessageBox.Show($"无法打开浏览器，请手动访问：\n{bellSoftUrl}",
+                    "在线安装 Java", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 

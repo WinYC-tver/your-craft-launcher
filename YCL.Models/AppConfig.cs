@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace YCL.Models
@@ -124,6 +125,85 @@ namespace YCL.Models
 
         /// <summary>是否启用页面切换动画（淡入 + 上滑）</summary>
         public bool EnableAnimations { get; set; } = true;
+
+        // ====== 多语言设置（v26.1.0.5）======
+
+        /// <summary>界面语言（默认简体中文）</summary>
+        public Language Language { get; set; } = Language.zhCN;
+
+        // ====== 下载增强设置（v26.1.0.5）======
+
+        /// <summary>
+        /// 资源文件名格式（{name}=资源名称，{file}=原文件名）。
+        /// 例如 "{name}-{file}" → create-1.21.1-6.0.4-我是名称（视实现而异）。
+        /// </summary>
+        public string ResourceFileNameFormat { get; set; } = "{name}-{file}";
+
+        // ====== 账户 UUID 设置（v26.1.0.5）======
+
+        /// <summary>
+        /// 离线账户 UUID 生成模式。
+        /// IndustryStandard=行业规范（MD5 哈希 "OfflinePlayer:" + 玩家名，与 Java 版一致），
+        /// PCL=PCL 风格（SHA256 哈希玩家名取前 16 字节），
+        /// Custom=自定义（用户输入）。
+        /// </summary>
+        public UuidMode UuidMode { get; set; } = UuidMode.IndustryStandard;
+
+        // ====== 下载引擎设置 ======
+
+        /// <summary>
+        /// 下载文件时使用的引擎。
+        /// Default=默认多线程下载器，PclCe=PCL CE 下载引擎，Ghost=Ghost Downloader 3。
+        /// </summary>
+        public DownloadEngine DownloadEngine { get; set; } = DownloadEngine.Default;
+
+        // ====== 主页设置 ======
+
+        /// <summary>
+        /// 主页类型。
+        /// Preset=内置预设（显示版本动态），Online=联网从 URL 拉取，Local=本地 HTML/图片文件。
+        /// </summary>
+        public HomepageType HomepageType { get; set; } = HomepageType.Preset;
+
+        /// <summary>本地主页文件的完整路径（HTML 或图片），仅在 HomepageType=Local 时使用</summary>
+        public string HomepageLocalPath { get; set; } = string.Empty;
+
+        /// <summary>联网主页 URL，仅在 HomepageType=Online 时使用（如 https://www.minecraft.net/）</summary>
+        public string HomepageUrl { get; set; } = string.Empty;
+
+        // ====== 实例级 Java 覆盖 ======
+
+        /// <summary>
+        /// 实例级 Java 覆盖配置：key=版本 id，value=对应使用的 Java 路径。
+        /// 为某版本指定专用 Java 后，启动该版本时会优先使用此路径而非全局 JavaPath。
+        /// </summary>
+        public Dictionary<string, string> InstanceJavaOverrides { get; set; } = new();
+    }
+
+    /// <summary>界面语言枚举（v26.1.0.5 多语言支持）</summary>
+    public enum Language
+    {
+        /// <summary>简体中文</summary>
+        zhCN = 0,
+
+        /// <summary>繁体中文</summary>
+        zhTW = 1,
+
+        /// <summary>英语</summary>
+        en = 2
+    }
+
+    /// <summary>离线账户 UUID 生成模式枚举（v26.1.0.5）</summary>
+    public enum UuidMode
+    {
+        /// <summary>行业规范：MD5 哈希 "OfflinePlayer:" + 玩家名（与 Java 版离线算法一致）</summary>
+        IndustryStandard = 0,
+
+        /// <summary>PCL 风格：SHA256 哈希玩家名取前 16 字节</summary>
+        PCL = 1,
+
+        /// <summary>自定义：用户输入 UUID 字符串</summary>
+        Custom = 2
     }
 
     /// <summary>主题模式枚举</summary>
@@ -170,5 +250,31 @@ namespace YCL.Models
 
         /// <summary>云母Alt（顶部加强的云母效果）</summary>
         MicaAlt = 3
+    }
+
+    /// <summary>下载引擎枚举：选择下载文件时使用的引擎</summary>
+    public enum DownloadEngine
+    {
+        /// <summary>默认（启动器内置多线程下载器）</summary>
+        Default = 0,
+
+        /// <summary>PCL CE 下载引擎</summary>
+        PclCe = 1,
+
+        /// <summary>Ghost Downloader 3</summary>
+        Ghost = 2
+    }
+
+    /// <summary>主页类型枚举：启动器主页面显示的内容来源</summary>
+    public enum HomepageType
+    {
+        /// <summary>预设：显示启动器内置的版本动态资讯</summary>
+        Preset = 0,
+
+        /// <summary>联网：从网络 URL 拉取主页内容</summary>
+        Online = 1,
+
+        /// <summary>本地：从本地 HTML/图片文件加载主页内容</summary>
+        Local = 2
     }
 }

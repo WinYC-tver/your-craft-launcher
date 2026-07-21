@@ -6,7 +6,7 @@
         xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
         mc:Ignorable="d"
         ui:WindowHelper.UseModernWindowStyle="True"
-        ui:WindowHelper.SystemBackdropType="Acrylic"
+        ui:WindowHelper.SystemBackdropType="Mica"
         Title="Your Craft Launcher (YCL)" Height="640" Width="1040"
         Loaded="Window_Loaded">
     <!-- 最外层 Grid：壁纸层 + 导航层叠加 -->
@@ -38,29 +38,32 @@
                            PaneDisplayMode="Top"
                            Header=""
                            Background="Transparent"
+                           IsBackEnabled="{Binding CanGoBack}"
+                           IsBackButtonVisible="Visible"
+                           BackRequested="NavigationView_BackRequested"
                            SelectionChanged="NavigationView_SelectionChanged">
             <ui:NavigationView.MenuItems>
-                <ui:NavigationViewItem x:Name="NavigationViewItem_Launch" Content="启动" Tag="Launch">
+                <ui:NavigationViewItem x:Name="NavigationViewItem_Launch" Content="{DynamicResource Nav_Launch}" Tag="Launch">
                     <ui:NavigationViewItem.Icon>
                         <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Play}"/>
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="下载资源" Tag="Download">
+                <ui:NavigationViewItem Content="{DynamicResource Nav_Download}" Tag="Download">
                     <ui:NavigationViewItem.Icon>
                         <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Download}"/>
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="新闻" Tag="News">
+                <ui:NavigationViewItem Content="{DynamicResource Nav_News}" Tag="News">
                     <ui:NavigationViewItem.Icon>
                         <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Globe}"/>
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="功能" Tag="Functions">
+                <ui:NavigationViewItem Content="{DynamicResource Nav_Functions}" Tag="Functions">
                     <ui:NavigationViewItem.Icon>
                         <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Tiles}"/>
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="设置" Tag="Settings">
+                <ui:NavigationViewItem Content="{DynamicResource Nav_Settings}" Tag="Settings">
                     <ui:NavigationViewItem.Icon>
                         <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Settings}"/>
                     </ui:NavigationViewItem.Icon>
@@ -70,13 +73,72 @@
             <!-- 内容区：绑定当前 ViewModel，由 App.xaml 中的 DataTemplate 渲染成对应页面。
                  套一层 Grid 加半透明遮罩，保证内容区在带壁纸时可读性。 -->
             <Grid>
-                <!-- 内容区半透明遮罩（让壁纸透出但内容仍可读） -->
-                <Border Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
-                        Opacity="0.85"
-                        IsHitTestVisible="False"/>
+                <Grid.RowDefinitions>
+                    <!-- 顶部横幅栏：显示当前页面标题，利用 NavigationView 下方空白区域 -->
+                    <RowDefinition Height="Auto"/>
+                    <!-- 实际内容区 -->
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-                <!-- 实际内容控件 -->
-                <ContentControl Content="{Binding CurrentView}"/>
+                <!-- ============ 顶部横幅：当前页面标题 + 应用名称（紧凑，利用空白区域） ============ -->
+                <Border Grid.Row="0"
+                        Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                        BorderThickness="0,0,0,1"
+                        CornerRadius="0"
+                        Padding="20,10"
+                        Opacity="0.9">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 左侧：当前页面标题（绑定到 ViewModel.CurrentPageTitle） -->
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.ViewAll}"
+                                         FontSize="16" Opacity="0.6" Margin="0,0,10,0"
+                                         VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding CurrentPageTitle}"
+                                       FontSize="14" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" Opacity="0.9"/>
+                        </StackPanel>
+
+                        <!-- 右侧：应用品牌 -->
+                        <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                   Opacity="0.45" FontSize="12"
+                                   Text="Your Craft Launcher"/>
+                    </Grid>
+                </Border>
+
+                <!-- ============ 实际内容区 ============ -->
+                <Grid Grid.Row="1">
+                    <!-- 内容区半透明遮罩（让壁纸透出但内容仍可读） -->
+                    <Border Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                            CornerRadius="0"
+                            Opacity="0.85"
+                            IsHitTestVisible="False"/>
+
+                    <!-- 实际内容控件：绑定当前 ViewModel。
+                         加 Loaded 触发的 FadeIn 动画（Opacity 0→1，200ms）作为页面切换过渡 -->
+                    <ContentControl Content="{Binding CurrentView}">
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl">
+                                <Setter Property="Opacity" Value="1"/>
+                                <Style.Triggers>
+                                    <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                 From="0" To="1" Duration="0:0:0.2"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContentControl.Style>
+                    </ContentControl>
+                </Grid>
             </Grid>
         </ui:NavigationView>
     </Grid>

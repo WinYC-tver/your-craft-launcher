@@ -7,7 +7,7 @@
       mc:Ignorable="d"
       d:DesignHeight="600" d:DesignWidth="900">
     <UserControl.Resources>
-        <!-- 卡片样式：圆角 + 悬浮抬升效果 -->
+        <!-- 卡片样式：圆角 + 悬浮抬升 + 缩放 + 阴影增强（Fluent 风格） -->
         <Style x:Key="FunctionCardStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
             <Setter Property="VerticalContentAlignment" Value="Stretch"/>
@@ -19,15 +19,41 @@
                     <ControlTemplate TargetType="Button">
                         <ControlTemplate.Resources>
                             <!-- Storyboard 定义在 ControlTemplate.Resources 中，让 Triggers 能用 StaticResource 找到 -->
+                            <!-- 悬停动画：上移 -4 + 放大 1.02 + 阴影增强，200ms -->
                             <Storyboard x:Key="HoverStoryboard">
-                                <DoubleAnimation Storyboard.TargetName="CardBorder"
-                                                  Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                                                  To="-4" Duration="0:0:0.15"/>
+                                <DoubleAnimation Storyboard.TargetName="CardTranslate"
+                                                  Storyboard.TargetProperty="Y"
+                                                  To="-4" Duration="0:0:0.2"/>
+                                <DoubleAnimation Storyboard.TargetName="CardScale"
+                                                  Storyboard.TargetProperty="ScaleX"
+                                                  To="1.02" Duration="0:0:0.2"/>
+                                <DoubleAnimation Storyboard.TargetName="CardScale"
+                                                  Storyboard.TargetProperty="ScaleY"
+                                                  To="1.02" Duration="0:0:0.2"/>
+                                <DoubleAnimation Storyboard.TargetName="CardShadow"
+                                                  Storyboard.TargetProperty="Opacity"
+                                                  To="0.3" Duration="0:0:0.2"/>
+                                <DoubleAnimation Storyboard.TargetName="CardShadow"
+                                                  Storyboard.TargetProperty="BlurRadius"
+                                                  To="16" Duration="0:0:0.2"/>
                             </Storyboard>
+                            <!-- 离开动画：还原，200ms -->
                             <Storyboard x:Key="LeaveStoryboard">
-                                <DoubleAnimation Storyboard.TargetName="CardBorder"
-                                                  Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                                                  To="0" Duration="0:0:0.15"/>
+                                <DoubleAnimation Storyboard.TargetName="CardTranslate"
+                                                  Storyboard.TargetProperty="Y"
+                                                  To="0" Duration="0:0:0.2"/>
+                                <DoubleAnimation Storyboard.TargetName="CardScale"
+                                                  Storyboard.TargetProperty="ScaleX"
+                                                  To="1" Duration="0:0:0.2"/>
+                                <DoubleAnimation Storyboard.TargetName="CardScale"
+                                                  Storyboard.TargetProperty="ScaleY"
+                                                  To="1" Duration="0:0:0.2"/>
+                                <DoubleAnimation Storyboard.TargetName="CardShadow"
+                                                  Storyboard.TargetProperty="Opacity"
+                                                  To="0.1" Duration="0:0:0.2"/>
+                                <DoubleAnimation Storyboard.TargetName="CardShadow"
+                                                  Storyboard.TargetProperty="BlurRadius"
+                                                  To="0" Duration="0:0:0.2"/>
                             </Storyboard>
                         </ControlTemplate.Resources>
                         <Border x:Name="CardBorder"
@@ -38,8 +64,16 @@
                                 Padding="20,18"
                                 RenderTransformOrigin="0.5,0.5">
                             <Border.RenderTransform>
-                                <TranslateTransform Y="0"/>
+                                <TransformGroup>
+                                    <ScaleTransform x:Name="CardScale" ScaleX="1" ScaleY="1"/>
+                                    <TranslateTransform x:Name="CardTranslate" Y="0"/>
+                                </TransformGroup>
                             </Border.RenderTransform>
+                            <Border.Effect>
+                                <DropShadowEffect x:Name="CardShadow" Color="Black"
+                                                  Opacity="0.1" BlurRadius="0"
+                                                  ShadowDepth="0" Direction="270"/>
+                            </Border.Effect>
                             <ContentPresenter Content="{TemplateBinding Content}"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -97,7 +131,7 @@
                 <Button Style="{StaticResource FunctionCardStyle}" Margin="0,0,0,12"
                         Command="{Binding NavigateCommand}" CommandParameter="Java">
                     <StackPanel Orientation="Horizontal">
-                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.DeveloperTools}" FontSize="32" Margin="0,0,16,0" VerticalAlignment="Center"/>
+                        <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Cafe}" FontSize="32" Margin="0,0,16,0" VerticalAlignment="Center"/>
                         <StackPanel>
                             <TextBlock Text="Java" FontSize="18" FontWeight="SemiBold"/>
                             <TextBlock Text="Java 运行时管理" Opacity="0.6" FontSize="12" Margin="0,4,0,0"/>

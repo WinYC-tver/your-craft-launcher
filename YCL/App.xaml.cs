@@ -109,6 +109,9 @@ namespace YCL
                     // 14. 注册皮肤显示服务（单例）
                     services.AddSingleton<SkinService>();
 
+                    // 14.1 注册本地化服务（单例，v26.1.0.5 多语言支持）
+                    services.AddSingleton<LocalizationService>();
+
                     // 15. 注册 Java 检测器（单例，依赖 .minecraft 路径以扫描 runtime 目录）
                     //     用工厂模式：通过 Func 委托从 IConfigService 读取 MinecraftPath
                     services.AddSingleton<IJavaDetector>(sp =>
@@ -228,6 +231,8 @@ namespace YCL
                     //     - 下载页：IMinecraftFileDownloader 事件订阅需要避免页面切换时累积
                     services.AddSingleton<LaunchPageViewModel>();
                     services.AddSingleton<DownloadPageViewModel>();
+                    // 资源详情页 ViewModel（单例，由 DownloadPage 内嵌显示，避免每次进入重建状态）
+                    services.AddSingleton<ResourceDetailPageViewModel>();
                     services.AddSingleton<HomePageViewModel>();
                     services.AddSingleton<JavaPageViewModel>();
                     services.AddSingleton<AccountPageViewModel>();
@@ -264,6 +269,9 @@ namespace YCL
             var themeService = _host.Services.GetRequiredService<IThemeService>();
             var configService = _host.Services.GetRequiredService<IConfigService>();
             themeService.ApplyFromConfig(configService);
+
+            // 应用上次保存的界面语言（v26.1.0.5 多语言支持）
+            _host.Services.GetRequiredService<LocalizationService>().InitializeFromConfig();
 
             // 从依赖注入容器获取主窗口并显示
             var mainWindow = _host.Services.GetRequiredService<MainWindow>();

@@ -4,8 +4,10 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
+      xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
       mc:Ignorable="d"
-      d:DesignHeight="640" d:DesignWidth="900">
+      d:DesignHeight="640" d:DesignWidth="900"
+      Loaded="AccountPage_Loaded">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </UserControl.Resources>
@@ -24,6 +26,36 @@
                 <Button Grid.Column="1" Content="+ 添加账户" Command="{Binding ShowAddPanelCommand}"
                         MinWidth="120" MinHeight="36"/>
             </Grid>
+
+            <!-- ============ 3D 皮肤预览区（Webview2） ============ -->
+            <!-- 注意：Webview2 预留接口。若运行时未安装 Webview2 Runtime，
+                 下方 SkinPreviewWebView 会被隐藏并显示降级文字提示。 -->
+            <Border Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"
+                    CornerRadius="8" Padding="12" Margin="0,0,0,16"
+                    HorizontalAlignment="Left">
+                <StackPanel>
+                    <TextBlock Text="3D 皮肤预览" FontSize="14" FontWeight="SemiBold"
+                               Margin="0,0,0,8" HorizontalAlignment="Center"/>
+                    <!-- Webview2 控件：渲染 three.js 3D 皮肤模型，大小 240x320 -->
+                    <wv2:WebView2 x:Name="SkinPreviewWebView"
+                                  Width="240" Height="320"
+                                  Visibility="Collapsed"/>
+                    <!-- 降级提示：Webview2 初始化失败时显示 -->
+                    <Border x:Name="SkinPreviewFallback"
+                            Width="240" Height="320"
+                            Background="#22000000"
+                            CornerRadius="4"
+                            Visibility="Visible">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="3D 预览不可用" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                            <TextBlock Text="未检测到 Webview2 运行时&#x0a;请安装后重启应用"
+                                       FontSize="11" Opacity="0.6" TextAlignment="Center"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
 
             <!-- ============ 添加账户面板 ============ -->
             <Border Background="{DynamicResource SystemControlBackgroundAltMediumBrush}"

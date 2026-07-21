@@ -77,10 +77,13 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ============ 顶部：标题 ============ -->
+        <!-- ============ 顶部：标题（咖啡图标，更符合 Java Logo） ============ -->
         <StackPanel Grid.Row="0" Margin="24,16,24,4">
-            <TextBlock Text="Java 管理" FontSize="32" FontWeight="SemiBold"/>
-            <TextBlock Text="管理启动游戏使用的 Java 运行时（支持自动检测、下载安装、手动添加）"
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="☕" FontSize="32" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                <TextBlock Text="Java 管理" FontSize="32" FontWeight="SemiBold"/>
+            </StackPanel>
+            <TextBlock Text="管理启动游戏使用的 Java 运行时（支持自动检测、在线安装、手动添加）"
                        Opacity="0.6" FontSize="13" Margin="0,4,0,0"/>
         </StackPanel>
 
@@ -98,6 +101,12 @@
                     </Style>
                 </Button.Style>
             </Button>
+            <Button Content="在线安装 Java" Command="{Binding InstallJavaOnlineCommand}"
+                    Padding="16,4" MinWidth="120" Margin="0,0,8,0"
+                    ToolTip="打开 BellSoft（Liberica JDK）下载页面"/>
+            <Button Content="自动选择" Command="{Binding AutoSelectJavaCommand}"
+                    Padding="16,4" MinWidth="96" Margin="0,0,8,0"
+                    ToolTip="根据当前游戏版本自动选择最合适的 Java；未指定版本时选择最新版本"/>
             <Button Content="安装 Java" Command="{Binding InstallJavaCommand}"
                     Padding="16,4" MinWidth="96" Margin="0,0,8,0">
                 <Button.Style>

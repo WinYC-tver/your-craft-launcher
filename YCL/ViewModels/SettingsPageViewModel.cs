@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -18,7 +19,8 @@ using ThemeMode = YCL.Models.ThemeMode;
 namespace YCL.ViewModels
 {
     /// <summary>
-    /// 设置页 ViewModel：负责管理启动设置、游戏设置、下载设置、系统设置、主题设置。
+    /// 设置页 ViewModel（v26.1.0.5 重构）：分类排放 + 设置搜索。
+    /// 主页面包含六个分类：启动与管理、游戏设置、个性化、下载、高级、关于。
     /// 每个设置项变化时立即通过 <see cref="IConfigService"/> 保存到配置文件，
     /// 大部分设置立即生效（主题即时应用，启动参数下次启动游戏时生效）。
     /// </summary>
@@ -28,6 +30,7 @@ namespace YCL.ViewModels
         private readonly IConfigService _configService;
         private readonly INavigationService _navigationService;
         private readonly IUpdateChecker? _updateChecker;
+        private readonly LocalizationService? _localizationService;
 
         // 开机自启注册表路径与键名
         private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -37,12 +40,14 @@ namespace YCL.ViewModels
             IThemeService themeService,
             IConfigService configService,
             INavigationService navigationService,
-            IUpdateChecker? updateChecker = null)
+            IUpdateChecker? updateChecker = null,
+            LocalizationService? localizationService = null)
         {
             _themeService = themeService;
             _configService = configService;
             _navigationService = navigationService;
             _updateChecker = updateChecker;
+            _localizationService = localizationService;
 
             var config = _configService.Current;
 
@@ -73,6 +78,7 @@ namespace YCL.ViewModels
             _downloadThreads = config.DownloadThreads;
             _retryCount = config.RetryCount;
             _curseForgeApiKey = config.CurseForgeApiKey;
+            _downloadEngine = config.DownloadEngine;
 
             // ====== 系统设置 ======
             _checkUpdateOnStartup = config.CheckUpdateOnStartup;
@@ -84,10 +90,84 @@ namespace YCL.ViewModels
             _wallpaperPath = config.WallpaperPath;
             _wallpaperOpacity = config.WallpaperOpacity;
             _enableAnimations = config.EnableAnimations;
+            _homepageType = config.HomepageType;
+            _homepageLocalPath = config.HomepageLocalPath;
+            _homepageUrl = config.HomepageUrl;
+
+            // ====== 语言设置（v26.1.0.5）======
+            _selectedLanguage = config.Language;
         }
 
         // ================================================================
-        // 主题设置（保留原有功能）
+        // 分类导航 + 设置搜索（v26.1.0.5）
+        // ================================================================
+
+        /// <summary>当前选中的分类 Key（Launch/Game/Personalize/Download/Advanced/About）</summary>
+        [ObservableProperty]
+        private string _selectedCategoryKey = "Personalize";
+
+        /// <summary>设置搜索关键字（为空时显示所有分类）</summary>
+        [ObservableProperty]
+        private string _searchKeyword = string.Empty;
+
+        /// <summary>切换分类</summary>
+        [RelayCommand]
+        private void SelectCategory(string key)
+        {
+            SelectedCategoryKey = key;
+            // 选择分类时清空搜索，避免搜索状态干扰
+            if (!string.IsNullOrEmpty(SearchKeyword))
+                SearchKeyword = string.Empty;
+        }
+
+        /// <summary>跳转到完整关于页</summary>
+        [RelayCommand]
+        private void OpenAboutPage()
+        {
+            _navigationService.NavigateTo("About");
+        }
+
+        // ================================================================
+        // 关于信息（v26.1.0.5）
+        // ================================================================
+
+        /// <summary>产品版本号（显示用，来自 InformationalVersion）</summary>
+        public string AppVersion
+        {
+            get
+            {
+                var ver = Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+                return string.IsNullOrWhiteSpace(ver) ? typeof(SettingsPageViewModel).Assembly.GetName().Version?.ToString() ?? "未知" : ver;
+            }
+        }
+
+        /// <summary>编译号（从 InformationalVersion 的 build 段解析，如 v0719.2654.0）</summary>
+        public string BuildNumber
+        {
+            get
+            {
+                var ver = Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+                if (string.IsNullOrWhiteSpace(ver)) return "未知";
+                var idx = ver.IndexOf("+build.");
+                if (idx >= 0) return "v" + ver.Substring(idx + "+build.".Length);
+                return "未知";
+            }
+        }
+
+        // ================================================================
+        // 语言设置（v26.1.0.5 多语言支持）
+        // ================================================================
+
+        [ObservableProperty]
+        private Language _selectedLanguage;
+
+        partial void OnSelectedLanguageChanged(Language value)
+        {
+            _localizationService?.SetLanguage(value);
+        }
+
+        // ================================================================
+        // 主题设置
         // ================================================================
 
         /// <summary>默认强调色（与 Windows 系统强调色一致）</summary>
@@ -156,7 +236,7 @@ namespace YCL.ViewModels
         private void SelectAccentColor(Color color) => SelectedAccentColor = color;
 
         // ================================================================
-        // 启动设置
+        // 启动与管理
         // ================================================================
 
         [ObservableProperty]
@@ -241,7 +321,6 @@ namespace YCL.ViewModels
                 Filter = "Java 可执行文件|javaw.exe;java.exe|所有文件|*.*",
                 CheckFileExists = true
             };
-            // 初始目录设为当前 JavaPath 所在目录
             if (!string.IsNullOrWhiteSpace(JavaPath))
             {
                 var dir = Path.GetDirectoryName(JavaPath);
@@ -255,11 +334,36 @@ namespace YCL.ViewModels
             }
         }
 
-        /// <summary>跳转到 Java 管理页（用户可在那里自动检测 / 安装 Java）</summary>
+        /// <summary>跳转到 Java 管理页（用户可在那里自动检测 / 在线安装 Java）</summary>
         [RelayCommand]
         private void GoToJavaPage()
         {
             _navigationService.NavigateTo("Java");
+        }
+
+        /// <summary>
+        /// 在线安装 Java：打开 BellSoft 下载页面（Liberica JDK）。
+        /// 对应规格：用户没有游戏所需 Java，或在 Java 管理界面点击"在线安装 Java"时调用。
+        /// </summary>
+        [RelayCommand]
+        private void InstallJavaOnline()
+        {
+            const string bellSoftUrl = "https://bell-sw.com/pages/downloads/?version=java-25&vtabs=true";
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = bellSoftUrl,
+                    UseShellExecute = true
+                });
+                Logger.Info($"已打开 BellSoft Java 下载页面：{bellSoftUrl}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("打开 BellSoft Java 下载页面失败", ex);
+                MessageBox.Show($"无法打开浏览器，请手动访问：\n{bellSoftUrl}",
+                    "在线安装 Java", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
         }
 
         // ================================================================
@@ -331,9 +435,9 @@ namespace YCL.ViewModels
 
         partial void OnDownloadThreadsChanged(int value)
         {
-            // 限制在 1~32 之间
+            // 限制在 1~64 之间（v26.1.0.5 扩展上限至 64）
             if (value < 1) value = 1;
-            if (value > 32) value = 32;
+            if (value > 64) value = 64;
             _configService.Current.DownloadThreads = value;
             _configService.Save();
         }
@@ -343,7 +447,6 @@ namespace YCL.ViewModels
 
         partial void OnRetryCountChanged(int value)
         {
-            // 限制在 0~10 之间
             if (value < 0) value = 0;
             if (value > 10) value = 10;
             _configService.Current.RetryCount = value;
@@ -359,14 +462,51 @@ namespace YCL.ViewModels
             _configService.Save();
         }
 
+        /// <summary>资源文件名格式（v26.1.0.5）：{name}=名称，{file}=原文件名</summary>
+        [ObservableProperty]
+        private string _resourceFileNameFormat = "{name}-{file}";
+
+        partial void OnResourceFileNameFormatChanged(string value)
+        {
+            _configService.Current.ResourceFileNameFormat = value ?? "{name}-{file}";
+            _configService.Save();
+        }
+
+        /// <summary>下载引擎（默认 / PCL CE / Ghost Downloader 3）</summary>
+        [ObservableProperty]
+        private DownloadEngine _downloadEngine;
+
+        partial void OnDownloadEngineChanged(DownloadEngine value)
+        {
+            _configService.Current.DownloadEngine = value;
+            _configService.Save();
+        }
+
         // ================================================================
-        // 系统设置
+        // 高级 / 系统
         // ================================================================
 
         /// <summary>日志文件所在目录（只读显示）</summary>
         public string LogPath => Path.Combine(
             System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData),
             "YCL", "logs");
+
+        /// <summary>崩溃报告目录（v26.1.0.5：启动器文件夹/clog）</summary>
+        public string CrashLogPath
+        {
+            get
+            {
+                try
+                {
+                    var exeDir = Path.GetDirectoryName(System.Environment.ProcessPath) ?? ".";
+                    return Path.Combine(exeDir, "clog");
+                }
+                catch
+                {
+                    return "clog";
+                }
+            }
+        }
 
         [ObservableProperty]
         private bool _checkUpdateOnStartup;
@@ -393,7 +533,6 @@ namespace YCL.ViewModels
         {
             _configService.Current.LaunchOnStartup = value;
             _configService.Save();
-            // 同时写入 / 删除注册表项
             SetStartupRegistry(value);
         }
 
@@ -403,7 +542,6 @@ namespace YCL.ViewModels
         {
             try
             {
-                // 目录不存在则创建
                 Directory.CreateDirectory(LogPath);
                 Process.Start(new ProcessStartInfo
                 {
@@ -414,6 +552,25 @@ namespace YCL.ViewModels
             catch (Exception ex)
             {
                 Logger.Error("打开日志文件夹失败", ex);
+            }
+        }
+
+        /// <summary>打开崩溃报告文件夹</summary>
+        [RelayCommand]
+        private void OpenCrashLogFolder()
+        {
+            try
+            {
+                Directory.CreateDirectory(CrashLogPath);
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = CrashLogPath,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("打开崩溃报告文件夹失败", ex);
             }
         }
 
@@ -441,7 +598,6 @@ namespace YCL.ViewModels
                 if (release != null)
                 {
                     UpdateCheckResult = $"发现新版本 {release.Version}！发布于 {release.PublishedAtDisplay}";
-                    // 弹窗提示用户
                     var msg = $"发现新版本 {release.Version}！\n\n" +
                               $"发布时间：{release.PublishedAtDisplay}\n\n" +
                               $"更新内容：\n{release.ReleaseNotes}\n\n" +
@@ -450,7 +606,6 @@ namespace YCL.ViewModels
                         MessageBoxButton.YesNo, MessageBoxImage.Information);
                     if (result == MessageBoxResult.Yes)
                     {
-                        // 用默认浏览器打开发布页面
                         Process.Start(new ProcessStartInfo
                         {
                             FileName = release.ReleaseUrl,
@@ -475,7 +630,7 @@ namespace YCL.ViewModels
         }
 
         // ================================================================
-        // 个性化设置（v26 新增）
+        // 个性化设置（外观）
         // ================================================================
 
         /// <summary>背景效果（默认 / 亚克力 / 云母 / 云母Alt）</summary>
@@ -486,7 +641,6 @@ namespace YCL.ViewModels
         {
             _configService.Current.Backdrop = value;
             _configService.Save();
-            // 即时应用到所有窗口
             _themeService.ApplyBackdrop(value);
         }
 
@@ -498,7 +652,6 @@ namespace YCL.ViewModels
         {
             _configService.Current.WallpaperPath = value;
             _configService.Save();
-            // 即时应用壁纸
             _themeService.ApplyWallpaper(value, WallpaperOpacity);
         }
 
@@ -508,12 +661,10 @@ namespace YCL.ViewModels
 
         partial void OnWallpaperOpacityChanged(double value)
         {
-            // 限制在 0~1 之间
             if (value < 0) value = 0;
             if (value > 1) value = 1;
             _configService.Current.WallpaperOpacity = value;
             _configService.Save();
-            // 即时应用壁纸不透明度
             _themeService.ApplyWallpaper(WallpaperPath, value);
         }
 
@@ -525,7 +676,60 @@ namespace YCL.ViewModels
         {
             _configService.Current.EnableAnimations = value;
             _configService.Save();
-            // 动画通过 XAML Style 实现，开关状态由资源控制（此处仅持久化配置）
+        }
+
+        /// <summary>主页类型（预设 / 联网 / 本地）</summary>
+        [ObservableProperty]
+        private HomepageType _homepageType;
+
+        partial void OnHomepageTypeChanged(HomepageType value)
+        {
+            _configService.Current.HomepageType = value;
+            _configService.Save();
+        }
+
+        /// <summary>本地主页文件路径（HomepageType=Local 时使用）</summary>
+        [ObservableProperty]
+        private string _homepageLocalPath;
+
+        partial void OnHomepageLocalPathChanged(string value)
+        {
+            _configService.Current.HomepageLocalPath = value ?? string.Empty;
+            _configService.Save();
+        }
+
+        /// <summary>联网主页 URL（HomepageType=Online 时使用）</summary>
+        [ObservableProperty]
+        private string _homepageUrl;
+
+        partial void OnHomepageUrlChanged(string value)
+        {
+            _configService.Current.HomepageUrl = value ?? string.Empty;
+            _configService.Save();
+        }
+
+        /// <summary>浏览选择本地主页文件（HTML 或图片）</summary>
+        [RelayCommand]
+        private void BrowseHomepageLocalPath()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "选择本地主页文件",
+                Filter = "主页文件|*.html;*.htm;*.png;*.jpg;*.jpeg;*.bmp|所有文件|*.*",
+                CheckFileExists = true
+            };
+
+            if (!string.IsNullOrWhiteSpace(HomepageLocalPath))
+            {
+                var dir = Path.GetDirectoryName(HomepageLocalPath);
+                if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                    dialog.InitialDirectory = dir;
+            }
+
+            if (dialog.ShowDialog() == true)
+            {
+                HomepageLocalPath = dialog.FileName;
+            }
         }
 
         /// <summary>浏览选择壁纸图片（png/jpg）</summary>
@@ -566,7 +770,6 @@ namespace YCL.ViewModels
         /// <summary>
         /// 写入或删除开机自启注册表项。
         /// 路径：HKCU\Software\Microsoft\Windows\CurrentVersion\Run
-        /// 用 try-catch 包裹（可能无权限）。
         /// </summary>
         private void SetStartupRegistry(bool enable)
         {
@@ -581,7 +784,6 @@ namespace YCL.ViewModels
 
                 if (enable)
                 {
-                    // 获取当前可执行文件路径
                     var exePath = System.Environment.ProcessPath;
                     if (!string.IsNullOrEmpty(exePath))
                     {
