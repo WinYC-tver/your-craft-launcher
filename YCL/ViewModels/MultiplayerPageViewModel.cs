@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using YCL.Core.Accounts;
@@ -36,6 +37,10 @@ namespace YCL.ViewModels
         private readonly MultiThreadDownloader _downloader;
         private readonly IGameLauncher _gameLauncher;
         private readonly IAccountManager _accountManager;
+        private readonly TerracottaService _terracottaService;
+
+        /// <summary>房间列表定时刷新定时器（每 5 秒调用 GetRooms 刷新 Rooms 集合）</summary>
+        private readonly DispatcherTimer _roomsRefreshTimer;
 
         /// <summary>Terracotta jar 存放路径：%AppData%\YCL\terracotta\terracotta.jar</summary>
         private static readonly string TerracottaJarPath = Path.Combine(
@@ -62,13 +67,15 @@ namespace YCL.ViewModels
             IConfigService configService,
             MultiThreadDownloader downloader,
             IGameLauncher gameLauncher,
-            IAccountManager accountManager)
+            IAccountManager accountManager,
+            TerracottaService terracottaService)
         {
             _versionManager = versionManager;
             _configService = configService;
             _downloader = downloader;
             _gameLauncher = gameLauncher;
             _accountManager = accountManager;
+            _terracottaService = terracottaService;
 
             // 构造函数里检查 Terracotta 是否已下载
             if (File.Exists(TerracottaJarPath))
@@ -82,6 +89,18 @@ namespace YCL.ViewModels
 
             // 立即异步加载已安装版本列表
             _ = LoadVersionsAsync();
+
+            // 初始化房间列表定时刷新定时器：每 5 秒调用一次 GetRooms 刷新 Rooms 集合
+            // 用 DispatcherTimer 保证 Tick 在 UI 线程触发，避免跨线程修改 ObservableCollection
+            _roomsRefreshTimer = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromSeconds(5)
+            };
+            _roomsRefreshTimer.Tick += OnRoomsRefreshTimerTick;
+            _roomsRefreshTimer.Start();
+
+            // 立即刷新一次房间列表，避免首次显示要等 5 秒
+            _ = RefreshRoomsAsync();
         }
 
         // ===== 绑定属性 =====
@@ -131,6 +150,17 @@ namespace YCL.ViewModels
         /// <summary>联机启动状态文字（显示在加入房间卡片下方）</summary>
         [ObservableProperty]
         private string _launchStatus = "";
+
+        /// <summary>当前房间列表（绑定到 UI，每 5 秒自动刷新一次）</summary>
+        public ObservableCollection<TerracottaRoom> Rooms { get; } = new();
+
+        /// <summary>联机码（加入房间用，8 位字符）</summary>
+        [ObservableProperty]
+        private string _joinCode = "";
+
+        /// <summary>最大人数（创建房间用，默认 4 人）</summary>
+        [ObservableProperty]
+        private int _maxPlayers = 4;
 
         // ===== 命令 =====
 
@@ -315,7 +345,10 @@ namespace YCL.ViewModels
             DownloadProgress = 100;
         }
 
-        /// <summary>创建房间命令：弹 MessageBox 提示功能开发中</summary>
+        /// <summary>
+        /// 创建房间命令：调用 TerracottaService.CreateRoom 启动 TCP 转发，生成联机码。
+        /// 把返回的房间加到 Rooms 集合，并弹窗显示联机码和房主地址。
+        /// </summary>
         [RelayCommand]
         private void CreateRoom()
         {
@@ -325,21 +358,82 @@ namespace YCL.ViewModels
                 return;
             }
 
-            // 简化实现：弹 MessageBox 提示
-            MessageBox.Show(
-                "房间创建功能开发中，请使用 Terracotta 客户端创建房间。\n\n" +
-                "房间名称：" + RoomName + "\n" +
-                "Terracotta jar 路径：\n" + TerracottaJarPath,
-                "创建房间",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            try
+            {
+                // 调用 TerracottaService 创建房间，启动 TCP 转发到 Minecraft 默认端口 25565
+                var room = _terracottaService.CreateRoom(RoomName, MaxPlayers, 25565);
+
+                // 把新房间加到本地集合（定时器 5 秒后也会刷新覆盖，但先加上让 UI 立即可见）
+                Rooms.Add(room);
+
+                Logger.Info($"房间已创建：{room.RoomName}（{room.RoomCode}），房主地址：{room.HostAddress}");
+
+                MessageBox.Show(
+                    "房间已创建，把联机码分享给朋友即可加入。\n\n" +
+                    "房间名称：" + room.RoomName + "\n" +
+                    "联机码：" + room.RoomCode + "\n" +
+                    "房主地址：" + room.HostAddress + "\n\n" +
+                    "请在 Minecraft 多人游戏里直接连接到：" + room.HostAddress,
+                    "房间创建成功",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("创建房间失败", ex);
+                MessageBox.Show("创建房间失败：" + ex.Message, "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
-        /// <summary>加入房间命令：保存服务器地址 + 启动联机（与 LaunchMultiplayer 等价）</summary>
+        /// <summary>
+        /// 加入房间命令：根据联机码调用 TerracottaService.GetRoomByCode 查询房主地址。
+        /// 找不到房间时提示错误，找到时显示房主地址，让用户在 Minecraft 多人游戏里直连。
+        /// </summary>
         [RelayCommand]
         private async Task JoinRoomAsync()
         {
-            await LaunchMultiplayerAsync();
+            if (string.IsNullOrWhiteSpace(JoinCode))
+            {
+                MessageBox.Show("请先填写联机码。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                // 在后台线程调用 GetRoomByCode，避免阻塞 UI（虽然内部只是查列表，但保持异步习惯）
+                var code = JoinCode.Trim();
+                var room = await Task.Run(() => _terracottaService.GetRoomByCode(code));
+
+                if (room == null)
+                {
+                    MessageBox.Show(
+                        "找不到该联机码的房间。\n\n" +
+                        "请检查联机码是否正确，或房主是否已关闭房间。",
+                        "加入房间失败",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                Logger.Info($"已查询到房间：{room.RoomName}（{room.RoomCode}），房主地址：{room.HostAddress}");
+
+                MessageBox.Show(
+                    "已找到房间！\n\n" +
+                    "房间名称：" + room.RoomName + "\n" +
+                    "联机码：" + room.RoomCode + "\n" +
+                    "房主地址：" + room.HostAddress + "\n\n" +
+                    "请在 Minecraft 多人游戏里直接连接到：" + room.HostAddress,
+                    "加入房间",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("加入房间失败", ex);
+                MessageBox.Show("加入房间失败：" + ex.Message, "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
         /// <summary>
@@ -570,6 +664,85 @@ namespace YCL.ViewModels
             catch (Exception ex)
             {
                 Logger.Warn("加载服务器列表失败：" + ex.Message);
+            }
+        }
+
+        // ===== TerracottaService 房间列表刷新 & 房间管理 =====
+
+        /// <summary>
+        /// 定时器 Tick 事件处理：异步刷新房间列表。
+        /// DispatcherTimer 默认在 UI 线程触发，无需手动切换。
+        /// </summary>
+        private void OnRoomsRefreshTimerTick(object? sender, EventArgs e)
+        {
+            _ = RefreshRoomsAsync();
+        }
+
+        /// <summary>
+        /// 刷新房间列表命令：调用 TerracottaService.GetRooms 重新加载 Rooms 集合。
+        /// 也可在 XAML 中绑定到页面 Loaded 事件或刷新按钮。
+        /// </summary>
+        [RelayCommand]
+        private async Task RefreshRoomsAsync()
+        {
+            try
+            {
+                // 在后台线程调用 GetRooms（虽然内部加锁很快，但保持异步习惯避免阻塞 UI）
+                var rooms = await Task.Run(() => _terracottaService.GetRooms());
+
+                Rooms.Clear();
+                foreach (var r in rooms)
+                    Rooms.Add(r);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("刷新房间列表失败", ex);
+            }
+        }
+
+        /// <summary>
+        /// 关闭房间命令：房主退出时调用 TerracottaService.RemoveRoom 关闭 TCP 监听，
+        /// 并从 Rooms 集合移除该房间。
+        /// </summary>
+        /// <param name="room">要关闭的房间（XAML 中可绑定 CommandParameter="{Binding SelectedRoom}"）</param>
+        [RelayCommand]
+        private void CloseRoom(TerracottaRoom? room)
+        {
+            if (room == null)
+            {
+                MessageBox.Show("请先选择要关闭的房间。", "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                var success = _terracottaService.RemoveRoom(room.RoomCode);
+                if (success)
+                {
+                    // 从本地集合移除（定时器也会同步，但先移除让 UI 立即反应）
+                    Rooms.Remove(room);
+                    Logger.Info($"房间已关闭：{room.RoomName}（{room.RoomCode}）");
+                    MessageBox.Show(
+                        "房间已关闭，TCP 监听已停止。\n\n" +
+                        "房间名称：" + room.RoomName + "\n" +
+                        "联机码：" + room.RoomCode,
+                        "关闭房间",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show(
+                        "关闭房间失败：找不到该房间（可能已被关闭）。",
+                        "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("关闭房间失败", ex);
+                MessageBox.Show("关闭房间失败：" + ex.Message, "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
     }

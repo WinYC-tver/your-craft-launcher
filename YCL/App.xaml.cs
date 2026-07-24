@@ -222,6 +222,9 @@ namespace YCL
                         return new UpdateChecker(() => config.Current.UpdateRepo);
                     });
 
+                    // 18.15 注册 Terracotta 联机服务（单例，提供基于 TCP 转发的房间管理）
+                    services.AddSingleton<TerracottaService>();
+
                     // 19. 注册主窗口 ViewModel（单例）
                     services.AddSingleton<MainWindowViewModel>();
 

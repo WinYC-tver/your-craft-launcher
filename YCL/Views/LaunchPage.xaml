@@ -8,7 +8,7 @@
       d:DesignHeight="640" d:DesignWidth="1040"
       Background="Transparent">
     <UserControl.Resources>
-        <!-- 启动按钮样式：主题色背景，圆角 12，hover 时缩放+阴影 -->
+        <!-- 启动按钮样式：主题色背景，圆角 8，hover 时缩放+阴影 -->
         <Style x:Key="LaunchButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Background" Value="{DynamicResource SystemAccentColor}"/>
             <Setter Property="Foreground" Value="{DynamicResource SystemAccentTextColor}"/>
@@ -26,7 +26,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="LaunchBorder"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="12"
+                                CornerRadius="8"
                                 Padding="{TemplateBinding Padding}">
                             <Border.Effect>
                                 <DropShadowEffect x:Name="LaunchShadow"

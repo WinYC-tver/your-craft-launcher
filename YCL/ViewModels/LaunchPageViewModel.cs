@@ -295,6 +295,15 @@ namespace YCL.ViewModels
             _gameLauncher.CleanBeforeLaunch = config.CleanBeforeLaunch;
 
             var javaPath = config.JavaPath;
+            // 实例级 Java 路径覆盖（v26.1.0.5：如果该版本有独立的 Java 配置，优先使用）
+            if (config.InstanceJavaOverrides != null &&
+                !string.IsNullOrEmpty(SelectedVersion) &&
+                config.InstanceJavaOverrides.TryGetValue(SelectedVersion, out var instanceJava) &&
+                !string.IsNullOrWhiteSpace(instanceJava))
+            {
+                javaPath = instanceJava;
+                Logger.Info($"版本 {SelectedVersion} 使用实例级 Java 路径：{javaPath}");
+            }
             if (string.IsNullOrWhiteSpace(javaPath))
             {
                 StatusText = "未配置 Java 路径";
